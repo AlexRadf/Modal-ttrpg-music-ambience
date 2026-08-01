@@ -8,6 +8,12 @@ export interface AssetLayoutOptions {
   /** Beds live in one flat folder; ids are filenames. */
   bedDir?: string;
   musicDir?: string;
+  /**
+   * The URLs that actually exist. When given, anything not in the set resolves
+   * to `null` — the engine skips it silently instead of reporting a missing
+   * file, which is what you want while a library is still being produced.
+   */
+  available?: Iterable<string>;
 }
 
 /**
@@ -24,9 +30,13 @@ export function assetLayout(opts: AssetLayoutOptions): SrcResolver {
   const ext = opts.ext ?? "ogg";
   const bedDir = opts.bedDir ?? "ambience";
   const musicDir = opts.musicDir ?? "music";
+  const available = opts.available ? new Set(opts.available) : null;
 
   return (req) => {
-    if (req.kind === "bed") return `${base}/${bedDir}/${req.bedId}.${ext}`;
-    return `${base}/${musicDir}/${req.themeId}/${req.variantId}/${req.mode}-${req.layer + 1}.${ext}`;
+    const url =
+      req.kind === "bed"
+        ? `${base}/${bedDir}/${req.bedId}.${ext}`
+        : `${base}/${musicDir}/${req.themeId}/${req.variantId}/${req.mode}-${req.layer + 1}.${ext}`;
+    return !available || available.has(url) ? url : null;
   };
 }

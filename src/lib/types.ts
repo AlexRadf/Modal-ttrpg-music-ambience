@@ -52,6 +52,8 @@ export interface ThemeDef {
   art?: string;
   bpm?: number;
   key?: string;
+  /** Bars per loop. Authoring metadata: with `bpm` it fixes the stem length. */
+  bars?: number;
   variants: VariantDef[];
   /** Bed ids shown by default for this theme, in display order. */
   ambience: string[];

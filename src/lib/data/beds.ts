@@ -1,45 +1,80 @@
 import type { BedDef } from "../types";
 
-/** Global ambience library — one flat folder, ids are filenames. */
+/**
+ * Ambience library for the ALIEN pack — one flat folder, ids are filenames.
+ *
+ * Beds are deliberately global rather than owned by a scene: the console's
+ * search pulls from this whole list, so a GM can drop a motion tracker into the
+ * med lab or a heartbeat into the cargo deck without anyone having authored it
+ * there.
+ */
 const NAMES: Record<string, string> = {
-  "hearth-fire": "Hearth fire",
-  "crowd-murmur": "Crowd murmur",
-  tankards: "Tankards and cutlery",
-  lute: "Lute in the corner",
-  "rain-shutters": "Rain on the shutters",
-  "cellar-drip": "Cellar drip",
-  "canopy-wind": "Canopy wind",
-  birdsong: "Birdsong",
-  creek: "Creek over stones",
-  "leaf-footfall": "Footfall on leaves",
-  "distant-howl": "Distant howl",
-  "insect-drone": "Insect drone",
-  "stone-tone": "Stone room tone",
-  "water-drip": "Water drip",
-  "torch-sputter": "Torch sputter",
-  "chain-pulley": "Chain and pulley",
-  rats: "Rats",
+  /* ship and station */
+  "ship-hum": "Ship hum",
+  "air-recycler": "Air recycler",
+  "reactor-throb": "Reactor throb",
+  "engine-rumble": "Engine rumble",
+  "coolant-hiss": "Coolant hiss",
+  "vent-draught": "Vent draught",
+  "fan-rattle": "Fan rattle",
+  "steam-vent": "Steam vent",
+  "hull-groan": "Hull groan",
+  "deck-creak": "Deck plate creak",
+  condensation: "Condensation drip",
+  "power-flicker": "Power flicker",
+  "sparks-shorting": "Shorting cable",
+  "electrical-fire": "Electrical fire",
+
+  /* doors, machinery, cargo */
+  "door-cycle": "Door cycle",
+  "airlock-cycle": "Airlock cycle",
+  "servo-whine": "Servo whine",
+  "cargo-loader": "Cargo loader",
+  "chain-sway": "Chain sway",
+  "crate-shift": "Crates shifting",
+  "gantry-steps": "Steps on gantry",
+  "elevator-cage": "Elevator cage",
+
+  /* signals and alarms */
+  "keypad-beeps": "Keypad beeps",
+  "terminal-chatter": "Terminal chatter",
+  "comms-static": "Comms static",
+  "radio-traffic": "Radio traffic",
+  "klaxon-distant": "Distant klaxon",
+  "klaxon-close": "Klaxon",
+  "pressure-alarm": "Pressure alarm",
+  "motion-tracker": "Motion tracker",
+  "geiger-ticks": "Geiger ticks",
+
+  /* crew */
+  "suit-breathing": "Suit breathing",
+  heartbeat: "Heartbeat",
   "low-breathing": "Low breathing",
-  surf: "Swell and surf",
-  gulls: "Gulls",
-  rigging: "Rigging and rope",
-  "hull-creak": "Hull creak",
-  "bell-buoy": "Bell buoy",
-  "arcane-hum": "Arcane hum",
-  "page-turn": "Page turn",
-  "brass-mechanism": "Brass mechanism",
-  "crystal-resonance": "Crystal resonance",
-  "high-wind": "Wind at height",
-  whispers: "Whispers",
-  "dry-wind": "Dry wind",
-  grit: "Grit on stone",
+  "distant-voices": "Distant voices",
+  "crowd-panic": "Panicked crowd",
+  "gunfire-distant": "Distant gunfire",
+
+  /* medical */
+  "vitals-monitor": "Vitals monitor",
+  "surgical-servo": "Surgical servo",
+  "incubator-hum": "Incubator hum",
+  "cryo-pods": "Cryo pods",
+
+  /* outside */
+  "storm-wind": "Storm wind",
+  "grit-on-visor": "Grit on the visor",
+  "rain-on-hull": "Rain on the hull",
   "distant-thunder": "Distant thunder",
-  "metal-groan": "Metal groan",
-  "carrion-birds": "Carrion birds",
-  embers: "Embers",
-  "market-bustle": "Market bustle",
-  "cart-wheels": "Cart wheels",
-  "temple-bell": "Temple bell",
+
+  /* the other thing */
+  "resin-creak": "Resin creak",
+  "wet-growth": "Wet growth",
+  "egg-pulse": "Egg pulse",
+  skitter: "Skittering",
+  "tail-drag": "Tail drag",
+  "creature-hiss": "Hiss",
+  "creature-screech": "Screech",
+  "vent-crawl": "Something in the vents",
 };
 
 export const BEDS: Record<string, BedDef> = Object.fromEntries(

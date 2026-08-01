@@ -15,7 +15,10 @@ export { AmbienceEngine } from "./lib/audio/engine";
 export { assetLayout } from "./lib/audio/resolve";
 export type { AssetLayoutOptions } from "./lib/audio/resolve";
 
-export { DEFAULT_CONFIG, BEDS, THEMES } from "./lib/data";
+export { DEFAULT_CONFIG, ALIEN_PACK, BEDS, THEMES } from "./lib/data";
+export { assetManifest, manifestSummary, missingAssets } from "./lib/manifest";
+export type { AssetEntry, ManifestOptions, ManifestSummary } from "./lib/manifest";
+export { layerCount } from "./lib/audio/sources";
 export { LEVEL_GAIN, MAX_INTENSITY, busTrim } from "./lib/constants";
 export { T as tokens } from "./lib/theme";
 

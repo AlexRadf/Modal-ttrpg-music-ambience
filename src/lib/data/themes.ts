@@ -1,89 +1,108 @@
 import type { ThemeDef } from "../types";
 
-/** Swap `image` for a real URL and the gradient falls away. */
+/**
+ * Scenes for the ALIEN pack.
+ *
+ * Names are deliberately generic rather than lifted from any published
+ * scenario, so the same six scenes carry a homebrew game as well as a
+ * pre-written one — and they are display strings, so rename them freely. The
+ * ids are what filenames are built from; changing those means moving files.
+ *
+ * `bpm`, `key` and `bars` are authoring metadata. The engine never reads them;
+ * they exist so everyone bouncing stems for a scene agrees on tempo and length,
+ * and they drive the spec in ASSETS.md.
+ *
+ * Swap `image` for real cover art and the gradient falls away.
+ */
 export const THEMES: ThemeDef[] = [
   {
-    id: "tavern",
-    name: "The Crooked Tankard",
-    accent: "#B07338",
+    id: "hypersleep",
+    name: "Hypersleep Bay",
+    accent: "#5E8CA8",
     image: null,
-    art: "radial-gradient(120% 90% at 25% 15%, #F0C077 0%, rgba(240,192,119,0) 55%), linear-gradient(160deg, #6B4423 0%, #33200F 100%)",
-    bpm: 92,
-    key: "G minor",
-    variants: [
-      { id: "warm", name: "Before the fire went out" },
-      { id: "ruined", name: "Burned out" },
-    ],
-    ambience: ["hearth-fire", "crowd-murmur", "tankards", "lute", "rain-shutters", "cellar-drip"],
-  },
-  {
-    id: "deepwood",
-    name: "Hollow Deepwood",
-    accent: "#4E7A5A",
-    image: null,
-    art: "radial-gradient(110% 80% at 70% 10%, #A9D4A5 0%, rgba(169,212,165,0) 50%), linear-gradient(150deg, #2E4E38 0%, #12261A 100%)",
-    bpm: 84,
-    key: "E minor",
-    variants: [
-      { id: "daylight", name: "Under the canopy" },
-      { id: "hunted", name: "Something is following" },
-    ],
-    ambience: ["canopy-wind", "birdsong", "creek", "leaf-footfall", "distant-howl", "insect-drone"],
-  },
-  {
-    id: "undercroft",
-    name: "The Undercroft",
-    accent: "#6C6E86",
-    image: null,
-    art: "radial-gradient(100% 80% at 30% 85%, #9AA0C4 0%, rgba(154,160,196,0) 55%), linear-gradient(155deg, #3A3D52 0%, #17181F 100%)",
-    bpm: 72,
-    key: "C minor",
-    variants: [
-      { id: "sealed", name: "Sealed corridors" },
-      { id: "flooded", name: "Flooded galleries" },
-    ],
-    ambience: ["stone-tone", "water-drip", "torch-sputter", "chain-pulley", "rats", "low-breathing"],
-  },
-  {
-    id: "harbour",
-    name: "Saltmere Harbour",
-    accent: "#3E7186",
-    image: null,
-    art: "radial-gradient(110% 85% at 75% 20%, #9FD3E4 0%, rgba(159,211,228,0) 55%), linear-gradient(160deg, #2C5A6E 0%, #10262F 100%)",
-    bpm: 88,
+    art: "radial-gradient(120% 90% at 30% 12%, #BFE3F0 0%, rgba(191,227,240,0) 55%), linear-gradient(160deg, #2B4A5E 0%, #0B141C 100%)",
+    bpm: 60,
     key: "D minor",
+    bars: 8,
     variants: [
-      { id: "morning", name: "Morning dock" },
-      { id: "storm", name: "Storm coming in" },
+      { id: "long-dark", name: "The long dark", layers: 3 },
+      { id: "wake", name: "Emergency wake", layers: 3 },
     ],
-    ambience: ["surf", "gulls", "rigging", "hull-creak", "crowd-murmur", "bell-buoy"],
+    ambience: ["cryo-pods", "ship-hum", "air-recycler", "condensation", "vitals-monitor", "low-breathing"],
   },
   {
-    id: "spire",
-    name: "The Ember Spire",
-    accent: "#8A5AA6",
+    id: "derelict",
+    name: "The Derelict",
+    accent: "#6E8A62",
     image: null,
-    art: "radial-gradient(110% 80% at 40% 12%, #D9A8F0 0%, rgba(217,168,240,0) 55%), linear-gradient(150deg, #4B2C61 0%, #1B1026 100%)",
-    bpm: 104,
+    art: "radial-gradient(110% 85% at 68% 15%, #A9C48F 0%, rgba(169,196,143,0) 50%), linear-gradient(155deg, #33422C 0%, #0D120C 100%)",
+    bpm: 66,
+    key: "C minor",
+    bars: 8,
+    variants: [
+      { id: "cold", name: "Cold and dead", layers: 4 },
+      { id: "awake", name: "Something is awake", layers: 4 },
+    ],
+    ambience: ["hull-groan", "vent-draught", "condensation", "deck-creak", "resin-creak", "comms-static"],
+  },
+  {
+    id: "colony",
+    name: "Colony Habitat",
+    accent: "#B07A3C",
+    image: null,
+    art: "radial-gradient(120% 90% at 25% 18%, #F2C983 0%, rgba(242,201,131,0) 55%), linear-gradient(160deg, #6A4A24 0%, #1E1409 100%)",
+    bpm: 84,
     key: "A minor",
+    bars: 8,
     variants: [
-      { id: "study", name: "The reading room" },
-      { id: "breach", name: "Containment failure" },
+      { id: "shift", name: "Shift change", layers: 4 },
+      { id: "evacuate", name: "Evacuation order", layers: 4 },
     ],
-    ambience: ["arcane-hum", "page-turn", "brass-mechanism", "crystal-resonance", "high-wind", "whispers"],
+    ambience: ["air-recycler", "terminal-chatter", "distant-voices", "klaxon-distant", "power-flicker", "fan-rattle"],
   },
   {
-    id: "waste",
-    name: "Ash Waste",
-    accent: "#9A6449",
+    id: "hive",
+    name: "The Hive",
+    accent: "#7B4E96",
     image: null,
-    art: "radial-gradient(120% 90% at 60% 80%, #E8B98C 0%, rgba(232,185,140,0) 55%), linear-gradient(160deg, #6A4632 0%, #241710 100%)",
-    bpm: 96,
+    art: "radial-gradient(110% 80% at 45% 85%, #C79AE0 0%, rgba(199,154,224,0) 55%), linear-gradient(150deg, #3D2450 0%, #0F0714 100%)",
+    bpm: 72,
     key: "F minor",
+    bars: 8,
     variants: [
-      { id: "open", name: "The open flat" },
-      { id: "buried", name: "The buried city" },
+      { id: "galleries", name: "Resin galleries", layers: 5 },
+      { id: "stirs", name: "The nest stirs", layers: 5 },
     ],
-    ambience: ["dry-wind", "grit", "distant-thunder", "metal-groan", "carrion-birds", "embers"],
+    ambience: ["resin-creak", "wet-growth", "egg-pulse", "skitter", "tail-drag", "low-breathing"],
+  },
+  {
+    id: "surface",
+    name: "Storm Surface",
+    accent: "#8F6E4E",
+    image: null,
+    art: "radial-gradient(120% 90% at 60% 80%, #E4BE8A 0%, rgba(228,190,138,0) 55%), linear-gradient(160deg, #5E4832 0%, #1B1410 100%)",
+    bpm: 78,
+    key: "G minor",
+    bars: 8,
+    variants: [
+      { id: "walk", name: "Exosuit walk", layers: 4 },
+      { id: "whiteout", name: "Whiteout", layers: 4 },
+    ],
+    ambience: ["storm-wind", "grit-on-visor", "suit-breathing", "motion-tracker", "radio-traffic", "distant-thunder"],
+  },
+  {
+    id: "medlab",
+    name: "Med Lab",
+    accent: "#4E8496",
+    image: null,
+    art: "radial-gradient(110% 85% at 72% 20%, #CFEAF2 0%, rgba(207,234,242,0) 55%), linear-gradient(155deg, #35525C 0%, #101A1E 100%)",
+    bpm: 90,
+    key: "B minor",
+    bars: 8,
+    variants: [
+      { id: "quarantine", name: "Quarantine", layers: 4 },
+      { id: "breach", name: "Containment breach", layers: 4 },
+    ],
+    ambience: ["vitals-monitor", "incubator-hum", "surgical-servo", "coolant-hiss", "keypad-beeps", "klaxon-close"],
   },
 ];

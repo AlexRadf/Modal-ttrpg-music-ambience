@@ -8,14 +8,10 @@ import type {
   LoadFailure,
   Mode,
   MusicMode,
-  SrcRequest,
-  ThemeDef,
-  VariantDef,
 } from "../types";
 import { AssetLoader } from "./loader";
+import { MUSIC_MODES, bedUrl, musicUrls } from "./sources";
 import { clamp, ramp } from "./util";
-
-const MUSIC_MODES: MusicMode[] = ["explore", "combat"];
 
 /** One theme+variant, loaded and playing. Layers that failed to load are null. */
 interface Deck {
@@ -172,24 +168,6 @@ export class AmbienceEngine {
 
   /* ------------------------------------------------------------- sources -- */
 
-  /** An asset's URL: whatever the config carries, else whatever the resolver says. */
-  private srcFor(req: SrcRequest, explicit?: string): string | null {
-    return explicit ?? this.opts.resolveSrc?.(req) ?? null;
-  }
-
-  /** Stem URLs per stack, indexed by layer. `null` means nothing was uploaded. */
-  private urlsFor(theme: ThemeDef, variant: VariantDef): Record<MusicMode, Array<string | null>> {
-    const out = {} as Record<MusicMode, Array<string | null>>;
-    for (const mode of MUSIC_MODES) {
-      const explicit = variant.music?.[mode];
-      const count = explicit?.length ?? variant.layers ?? MAX_INTENSITY;
-      out[mode] = Array.from({ length: count }, (_, layer) =>
-        this.srcFor({ kind: "music", themeId: theme.id, variantId: variant.id, mode, layer }, explicit?.[layer])
-      );
-    }
-    return out;
-  }
-
   /**
    * Downloads and decodes a scene's assets without disturbing playback. Worth
    * calling when the console opens, so the first press of play is instant.
@@ -201,9 +179,9 @@ export class AmbienceEngine {
     if (!variant) return;
 
     this.ensure();
-    const urls = this.urlsFor(theme, variant);
+    const urls = musicUrls(theme, variant, this.opts.resolveSrc);
     const wanted = MUSIC_MODES.flatMap((mode) => urls[mode])
-      .concat(theme.ambience.map((bedId) => this.srcFor({ kind: "bed", bedId }, this.config.beds[bedId]?.src)))
+      .concat(theme.ambience.map((bedId) => bedUrl(this.config, bedId, this.opts.resolveSrc)))
       .filter((url): url is string => !!url);
 
     await this.loader.prefetch(wanted);
@@ -256,7 +234,7 @@ export class AmbienceEngine {
     if (this.deck && this.deck.key === key) return;
 
     const token = ++this.generation;
-    const urls = this.urlsFor(theme, variant);
+    const urls = musicUrls(theme, variant, this.opts.resolveSrc);
     const buffers = {} as Record<MusicMode, Array<AudioBuffer | null>>;
 
     // one bad stem should not cost the whole scene, so failures are tolerated
@@ -393,8 +371,7 @@ export class AmbienceEngine {
       return;
     }
 
-    const def = this.config.beds[bedId];
-    const url = this.srcFor({ kind: "bed", bedId }, def?.src);
+    const url = bedUrl(this.config, bedId, this.opts.resolveSrc);
     if (!url) {
       this.markBed(bedId, false);
       this.report({ url: bedId, message: "no audio uploaded for this bed" });

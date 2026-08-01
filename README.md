@@ -147,18 +147,44 @@ Browsers only let audio start from a user gesture. Nothing touches the `AudioCon
 until the first deliberate action, so calling `setMode("combat")` on page load will set
 the state and stay silent until someone clicks. Drive it from a click, not an effect.
 
-## Your own content
+## Content
 
-`themes` and `beds` are plain data. Replace them wholesale:
+The bundled pack is for **ALIEN RPG**: six scenes — hypersleep bay, derelict, colony
+habitat, hive, storm surface, med lab — with two variants each and a shared library of 53
+sci-fi horror beds. Scene names are generic rather than lifted from any published
+scenario, and they are display strings, so rename them freely; the ids are what filenames
+are built from.
+
+It is plain data. Replace it wholesale, or extend it:
 
 ```tsx
-<AmbienceConsole config={{ beds: MY_BEDS, themes: MY_THEMES }} />
+<AmbienceConsole config={{ ...ALIEN_PACK, themes: ALIEN_PACK.themes.concat(myScenes) }} />
 ```
 
-Beds live in one flat namespace so any theme can borrow any bed — that is what the "Add
-more" search is pulling from — and ids double as filenames. A theme lists the beds it
-opens with; the rest of the library is one search away. Give a theme `image` for real
-cover art, or leave it null and the `art` gradient stands in.
+Beds live in one flat namespace so any scene can borrow any bed — that is what the "Add
+more" search pulls from — and ids double as filenames. A scene lists the beds it opens
+with; the rest of the library is one search away. Give a scene `image` for real cover art,
+or leave it null and the `art` gradient stands in.
+
+## What to record
+
+[ASSETS.md](ASSETS.md) is the upload checklist: every file the pack needs, with format,
+level and loop-length specs, and a suggested order to produce them in. It is generated
+from the config, so it cannot drift:
+
+```bash
+npm run assets                            # regenerate ASSETS.md
+npm run assets -- --base=/media --ext=m4a # for a different layout
+```
+
+The same generator is exported, for an admin screen that diffs required against uploaded:
+
+```ts
+import { assetManifest, missingAssets, DEFAULT_CONFIG } from "@ambience/console";
+
+const required = assetManifest(DEFAULT_CONFIG, { resolveSrc });
+const outstanding = missingAssets(DEFAULT_CONFIG, await listUploadedUrls());
+```
 
 ## Props
 

@@ -23,7 +23,8 @@
     "build": "tsc --noEmit && vite build",
     "build:demo": "tsc --noEmit && BUILD_TARGET=demo vite build",
     "preview": "BUILD_TARGET=demo vite preview",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "assets": "node scripts/assets.mjs"
   },
   "dependencies": {
     "lucide-react": "^0.468.0"
