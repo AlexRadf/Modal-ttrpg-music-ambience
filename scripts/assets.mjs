@@ -34,8 +34,18 @@ await build({
   logLevel: "warning",
 });
 
-const { DEFAULT_CONFIG, assetManifest, manifestSummary, assetLayout, motifSeconds, poolSeconds, variantMotifs } =
-  await import(pathToFileURL(bundle).href);
+const {
+  DEFAULT_CONFIG,
+  assetManifest,
+  manifestSummary,
+  assetLayout,
+  motifSeconds,
+  poolSeconds,
+  variantMotifs,
+  SCENE_BRIEFS,
+  BED_NOTES,
+  ONE_SHOT_NOTES,
+} = await import(pathToFileURL(bundle).href);
 rmSync(dir, { recursive: true, force: true });
 
 const config = DEFAULT_CONFIG;
@@ -195,6 +205,20 @@ for (const theme of config.themes) {
       `(${motifSeconds(theme.bpm, theme.bars).toFixed(1)} s) · ${info.intensities} intensity levels`
   );
   w();
+  const brief = SCENE_BRIEFS[theme.id];
+  if (brief) {
+    w(`> ${brief.premise}`);
+    w();
+    w(`**Palette.** ${brief.palette}`);
+    w();
+    w("**Intensity levels** — each file is the complete mix at that level, not just the part being added:");
+    w();
+    brief.levels.forEach((text, i) => w(`${i + 1}. ${text}`));
+    w();
+    w(`**Combat pool.** ${brief.combat}`);
+    w();
+  }
+
   for (const variant of theme.variants) {
     const ex = poolSeconds(config, theme.id, variant.id, "explore");
     const co = poolSeconds(config, theme.id, variant.id, "combat");
@@ -225,10 +249,11 @@ w(
     "the rest of the library is reachable from the console's search, so all of them are worth having."
 );
 w();
-w("| File | Name | Opens with |");
-w("|---|---|---|");
+w("| File | Name | Opens with | Notes |");
+w("|---|---|---|---|");
 for (const bed of beds) {
-  w(`| \`${bed.url}\` | ${bed.label} | ${bed.usedBy.length ? bed.usedBy.join(", ") : "—"} |`);
+  const note = BED_NOTES[bed.bedId] ?? "";
+  w(`| \`${bed.url}\` | ${bed.label} | ${bed.usedBy.length ? bed.usedBy.join(", ") : "—"} | ${note} |`);
 }
 w();
 
@@ -240,6 +265,8 @@ w(
     "to cut through."
 );
 w();
+for (const [group, note] of Object.entries(ONE_SHOT_NOTES)) w(`- **${group}.** ${note}`);
+w();
 w("| File | Name | Group |");
 w("|---|---|---|");
 for (const o of oneShots) w(`| \`${o.url}\` | ${o.label} | ${o.group ?? "—"} |`);
@@ -249,7 +276,7 @@ w("## Producing this in order");
 w();
 const perScene = summary.byTheme[0];
 w(
-  `1. **One exploration motif per scene, all layers** (${config.themes.length} motifs, ` +
+  `1. **One exploration motif per scene, every level** (${config.themes.length} motifs, ` +
     `~${config.themes.reduce((n, t) => n + (summary.byTheme.find((s) => s.themeId === t.id)?.intensities ?? 4), 0)} files). ` +
     "Every scene plays, and intensity works. This is the smallest thing worth demoing."
 );
@@ -257,7 +284,7 @@ w(
   `2. **Scene beds** (${config.themes.reduce((n, t) => n + t.ambience.length, 0)} files, some shared). ` +
     "Most of the atmosphere lives here, and beds are far quicker to produce than scored motifs."
 );
-w("3. **The rest of each exploration pool** — the music stops feeling like a loop.");
+w("3. **The rest of each exploration pool** — the shuffle has enough material to stop feeling like a loop.");
 w("4. **Combat pools** — the combat toggle starts working.");
 w("5. **The rest of the bed library**, for the search.");
 w();
@@ -273,8 +300,10 @@ w(
   `Unique music scales with **motifs × scenes**, and file count with **× layers**. Today: ` +
     `${config.themes.length} scenes × ${perScene.motifs} motifs × ~${worstLayers} intensity levels. Halving the pool to ` +
     "four exploration and two combat motifs per scene halves both, at the cost of the order coming " +
-    "round twice as fast. Dropping a scene removes its whole column. Cutting a layer removes one file " +
-    "per motif and one step from the intensity control."
+    "round twice as fast. Dropping a scene removes its whole column. Cutting a level removes one file " +
+    "per motif and one step from the intensity control.\n\nThe honest floor: **" +
+    `${config.themes.length} scenes × 1 exploration motif × 4 levels = ${config.themes.length * 4} music files** ` +
+    "plus the beds. Everything above that buys variety, not function."
 );
 
 writeFileSync(out, lines.join("\n"));

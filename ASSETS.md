@@ -71,6 +71,18 @@ Motifs are chained by scheduling the next one to start the sample after the last
 
 `hypersleep` · 60 BPM · D minor · 11 bars per motif (44.0 s) · 3 intensity levels
 
+> Twelve people asleep in a cold room, and the ship minding them. Nothing has gone wrong yet.
+
+**Palette.** Sine sub, bowed glass, filtered breath, a music box. No percussion at any level, and no note shorter than a bar — the room is asleep and the score should be too.
+
+**Intensity levels** — each file is the complete mix at that level, not just the part being added:
+
+1. Sub drone on the root, and one held glass tone a fifth above. Almost nothing.
+2. Bowed cello enters underneath, swelling once per phrase and answering the glass.
+3. A four-note music-box figure, high and sparse, that never resolves back to the root.
+
+**Combat pool.** Same instruments, no new ones. The sub gains a slow tremolo, the cello plays semitone clusters instead of fifths, and the music box is struck twice as often and slightly sharp.
+
 - **The long dark** draws on 9 motifs — exploration runs 4:24 and combat 2:12 before the order refreshes.
 - **Emergency wake** draws on 9 motifs — exploration runs 4:24 and combat 2:12 before the order refreshes.
 
@@ -123,6 +135,19 @@ Motifs are chained by scheduling the next one to start the sample after the last
 ### The Derelict
 
 `derelict` · 66 BPM · C minor · 12 bars per motif (43.6 s) · 4 intensity levels
+
+> Something that stopped being a ship a long time ago. Cold, airless, and not entirely empty.
+
+**Palette.** Prepared piano, bowed cymbal and metal, detuned double bass, contrabass clarinet. Room tone with a long tail. Nothing with a pulse — no drums anywhere in the exploration pool.
+
+**Intensity levels** — each file is the complete mix at that level, not just the part being added:
+
+1. Double bass drone, detuned a few cents against itself so it beats slowly.
+2. Bowed metal above it — cymbal, saw blade, whatever rings — entering and dying away without rhythm.
+3. Prepared piano: single struck notes, damped, spaced several bars apart.
+4. Contrabass clarinet holds a line under everything, moving by semitone only.
+
+**Combat pool.** The pulse arrives: a low struck heartbeat on the beat, and the prepared piano becomes a repeated two-note figure. Keep the metal — it is what makes it the same place.
 
 - **Cold and dead** draws on 9 motifs — exploration runs 4:22 and combat 2:11 before the order refreshes.
 - **Something is awake** draws on 9 motifs — exploration runs 4:22 and combat 2:11 before the order refreshes.
@@ -189,6 +214,19 @@ Motifs are chained by scheduling the next one to start the sample after the last
 
 `colony` · 84 BPM · A minor · 16 bars per motif (45.7 s) · 4 intensity levels
 
+> Somewhere people actually live. Strip lights, recycled air, a shift about to end.
+
+**Palette.** Upright bass, brushed kit, a lone trumpet with a lot of room on it, cheap synth pad. The only scene with anything like a groove — play it worn and slightly behind the beat.
+
+**Intensity levels** — each file is the complete mix at that level, not just the part being added:
+
+1. Upright bass walking slowly, brushes on a snare, barely there.
+2. Synth pad underneath, warm and a little detuned, like the lighting.
+3. Trumpet takes a short unaccompanied phrase and lets the room answer it.
+4. The kit fills out — ride, kick on one — and the bass doubles its pace.
+
+**Combat pool.** The groove breaks rather than accelerates: bass goes to repeated eighths on one note, brushes to sticks, and the trumpet plays one long distorted tone instead of a phrase.
+
 - **Shift change** draws on 9 motifs — exploration runs 4:34 and combat 2:17 before the order refreshes.
 - **Evacuation order** draws on 9 motifs — exploration runs 4:34 and combat 2:17 before the order refreshes.
 
@@ -253,6 +291,20 @@ Motifs are chained by scheduling the next one to start the sample after the last
 ### The Hive
 
 `hive` · 72 BPM · F minor · 14 bars per motif (46.7 s) · 5 intensity levels
+
+> Not a room any more. Resin over everything, and the walls are breathing.
+
+**Palette.** Contrabass clarinet, taiko and frame drums, close choir clusters, wet organic foley pitched into the score. The most instruments of any scene, and the least melody.
+
+**Intensity levels** — each file is the complete mix at that level, not just the part being added:
+
+1. A pitched breath — choir on the edge of a whisper, one note, unmeasured.
+2. Contrabass clarinet below, moving in semitones under the breath.
+3. Frame drum, one soft strike every two bars, in no fixed pattern.
+4. The choir opens into a cluster: root, minor second, tritone. Hold it.
+5. Pitched wet foley — dripping, splitting, shifting — played as an instrument on top.
+
+**Combat pool.** Taiko takes over: driving, not on the grid, accelerating within each motif and resetting at the join. The choir cluster becomes a shout on the downbeat.
 
 - **Resin galleries** draws on 9 motifs — exploration runs 4:40 and combat 2:20 before the order refreshes.
 - **The nest stirs** draws on 9 motifs — exploration runs 4:40 and combat 2:20 before the order refreshes.
@@ -331,6 +383,19 @@ Motifs are chained by scheduling the next one to start the sample after the last
 
 `surface` · 78 BPM · G minor · 14 bars per motif (43.1 s) · 4 intensity levels
 
+> Outside, in a storm, in a suit. Visibility three metres and the beacon is somewhere ahead.
+
+**Palette.** Granular noise pads built from wind, low brass, distant snare rolls, bowed double bass harmonics. Everything sounds like it is arriving through something.
+
+**Intensity levels** — each file is the complete mix at that level, not just the part being added:
+
+1. Granular wind pad, pitched to the root, no attack at all.
+2. Low brass swells beneath it — trombone, tuba — once per phrase.
+3. Snare roll far away, rising and falling, never resolving into a beat.
+4. Bowed harmonics on the double bass, high and thin, cutting through the wind.
+
+**Combat pool.** The snare comes close and becomes a march that will not settle, and the brass moves from swells to short stabs. Keep the wind pad exactly as it is.
+
 - **Exosuit walk** draws on 9 motifs — exploration runs 4:18 and combat 2:09 before the order refreshes.
 - **Whiteout** draws on 9 motifs — exploration runs 4:18 and combat 2:09 before the order refreshes.
 
@@ -395,6 +460,19 @@ Motifs are chained by scheduling the next one to start the sample after the last
 ### Med Lab
 
 `medlab` · 90 BPM · B minor · 16 bars per motif (42.7 s) · 4 intensity levels
+
+> Clean, lit, and organised — until whatever is on the table stops cooperating.
+
+**Palette.** Pulsing synth sixteenths, glass harmonica, string harmonics, prepared piano. The most rhythmic scene, but clinical rather than driving.
+
+**Intensity levels** — each file is the complete mix at that level, not just the part being added:
+
+1. A synth pulse in sixteenths, filtered almost shut, more felt than heard.
+2. Glass harmonica holds two notes a whole tone apart, beating against each other.
+3. String harmonics enter high above, one note per bar.
+4. The pulse opens up and gains a second, offset pulse — the same tempo, wrong phase.
+
+**Combat pool.** The two pulses fall out of phase deliberately and the glass harmonica bends down a quarter tone across each motif. Nothing new is added — it is the same room going wrong.
 
 - **Quarantine** draws on 9 motifs — exploration runs 4:16 and combat 2:08 before the order refreshes.
 - **Containment breach** draws on 9 motifs — exploration runs 4:16 and combat 2:08 before the order refreshes.
@@ -461,65 +539,71 @@ Motifs are chained by scheduling the next one to start the sample after the last
 
 One flat folder; the id is the filename. Beds listed by a scene are the ones it opens with — the rest of the library is reachable from the console's search, so all of them are worth having.
 
-| File | Name | Opens with |
-|---|---|---|
-| `/audio/ambience/ship-hum.ogg` | Ship hum | Hypersleep Bay |
-| `/audio/ambience/air-recycler.ogg` | Air recycler | Hypersleep Bay, Colony Habitat |
-| `/audio/ambience/reactor-throb.ogg` | Reactor throb | — |
-| `/audio/ambience/engine-rumble.ogg` | Engine rumble | — |
-| `/audio/ambience/coolant-hiss.ogg` | Coolant hiss | Med Lab |
-| `/audio/ambience/vent-draught.ogg` | Vent draught | The Derelict |
-| `/audio/ambience/fan-rattle.ogg` | Fan rattle | Colony Habitat |
-| `/audio/ambience/steam-vent.ogg` | Steam vent | — |
-| `/audio/ambience/hull-groan.ogg` | Hull groan | The Derelict |
-| `/audio/ambience/deck-creak.ogg` | Deck plate creak | The Derelict |
-| `/audio/ambience/condensation.ogg` | Condensation drip | Hypersleep Bay, The Derelict |
-| `/audio/ambience/power-flicker.ogg` | Power flicker | Colony Habitat |
-| `/audio/ambience/sparks-shorting.ogg` | Shorting cable | — |
-| `/audio/ambience/electrical-fire.ogg` | Electrical fire | — |
-| `/audio/ambience/door-cycle.ogg` | Door cycle | — |
-| `/audio/ambience/airlock-cycle.ogg` | Airlock cycle | — |
-| `/audio/ambience/servo-whine.ogg` | Servo whine | — |
-| `/audio/ambience/cargo-loader.ogg` | Cargo loader | — |
-| `/audio/ambience/chain-sway.ogg` | Chain sway | — |
-| `/audio/ambience/crate-shift.ogg` | Crates shifting | — |
-| `/audio/ambience/gantry-steps.ogg` | Steps on gantry | — |
-| `/audio/ambience/elevator-cage.ogg` | Elevator cage | — |
-| `/audio/ambience/keypad-beeps.ogg` | Keypad beeps | Med Lab |
-| `/audio/ambience/terminal-chatter.ogg` | Terminal chatter | Colony Habitat |
-| `/audio/ambience/comms-static.ogg` | Comms static | The Derelict |
-| `/audio/ambience/radio-traffic.ogg` | Radio traffic | Storm Surface |
-| `/audio/ambience/klaxon-distant.ogg` | Distant klaxon | Colony Habitat |
-| `/audio/ambience/klaxon-close.ogg` | Klaxon | Med Lab |
-| `/audio/ambience/pressure-alarm.ogg` | Pressure alarm | — |
-| `/audio/ambience/motion-tracker.ogg` | Motion tracker | Storm Surface |
-| `/audio/ambience/geiger-ticks.ogg` | Geiger ticks | — |
-| `/audio/ambience/suit-breathing.ogg` | Suit breathing | Storm Surface |
-| `/audio/ambience/heartbeat.ogg` | Heartbeat | — |
-| `/audio/ambience/low-breathing.ogg` | Low breathing | Hypersleep Bay, The Hive |
-| `/audio/ambience/distant-voices.ogg` | Distant voices | Colony Habitat |
-| `/audio/ambience/crowd-panic.ogg` | Panicked crowd | — |
-| `/audio/ambience/gunfire-distant.ogg` | Distant gunfire | — |
-| `/audio/ambience/vitals-monitor.ogg` | Vitals monitor | Hypersleep Bay, Med Lab |
-| `/audio/ambience/surgical-servo.ogg` | Surgical servo | Med Lab |
-| `/audio/ambience/incubator-hum.ogg` | Incubator hum | Med Lab |
-| `/audio/ambience/cryo-pods.ogg` | Cryo pods | Hypersleep Bay |
-| `/audio/ambience/storm-wind.ogg` | Storm wind | Storm Surface |
-| `/audio/ambience/grit-on-visor.ogg` | Grit on the visor | Storm Surface |
-| `/audio/ambience/rain-on-hull.ogg` | Rain on the hull | — |
-| `/audio/ambience/distant-thunder.ogg` | Distant thunder | Storm Surface |
-| `/audio/ambience/resin-creak.ogg` | Resin creak | The Derelict, The Hive |
-| `/audio/ambience/wet-growth.ogg` | Wet growth | The Hive |
-| `/audio/ambience/egg-pulse.ogg` | Egg pulse | The Hive |
-| `/audio/ambience/skitter.ogg` | Skittering | The Hive |
-| `/audio/ambience/tail-drag.ogg` | Tail drag | The Hive |
-| `/audio/ambience/creature-hiss.ogg` | Hiss | — |
-| `/audio/ambience/creature-screech.ogg` | Screech | — |
-| `/audio/ambience/vent-crawl.ogg` | Something in the vents | — |
+| File | Name | Opens with | Notes |
+|---|---|---|---|
+| `/audio/ambience/ship-hum.ogg` | Ship hum | Hypersleep Bay | Low tonal drone. Pick a pitch that does not clash with the scene keys — E or A works against most of them. |
+| `/audio/ambience/air-recycler.ogg` | Air recycler | Hypersleep Bay, Colony Habitat | The bed most scenes lean on. Wide, steady, and boring on purpose — it must survive an hour. |
+| `/audio/ambience/reactor-throb.ogg` | Reactor throb | — |  |
+| `/audio/ambience/engine-rumble.ogg` | Engine rumble | — |  |
+| `/audio/ambience/coolant-hiss.ogg` | Coolant hiss | Med Lab |  |
+| `/audio/ambience/vent-draught.ogg` | Vent draught | The Derelict |  |
+| `/audio/ambience/fan-rattle.ogg` | Fan rattle | Colony Habitat |  |
+| `/audio/ambience/steam-vent.ogg` | Steam vent | — |  |
+| `/audio/ambience/hull-groan.ogg` | Hull groan | The Derelict | Long metal stress, 20–40 s apart. Vary the gaps or the loop announces itself. |
+| `/audio/ambience/deck-creak.ogg` | Deck plate creak | The Derelict |  |
+| `/audio/ambience/condensation.ogg` | Condensation drip | Hypersleep Bay, The Derelict | Individual drops with long, uneven gaps. Randomise the intervals or it becomes a rhythm. |
+| `/audio/ambience/power-flicker.ogg` | Power flicker | Colony Habitat | Electrical stutter with a moment of near-silence in it. Those gaps are the effect. |
+| `/audio/ambience/sparks-shorting.ogg` | Shorting cable | — |  |
+| `/audio/ambience/electrical-fire.ogg` | Electrical fire | — |  |
+| `/audio/ambience/door-cycle.ogg` | Door cycle | — |  |
+| `/audio/ambience/airlock-cycle.ogg` | Airlock cycle | — |  |
+| `/audio/ambience/servo-whine.ogg` | Servo whine | — |  |
+| `/audio/ambience/cargo-loader.ogg` | Cargo loader | — |  |
+| `/audio/ambience/chain-sway.ogg` | Chain sway | — |  |
+| `/audio/ambience/crate-shift.ogg` | Crates shifting | — |  |
+| `/audio/ambience/gantry-steps.ogg` | Steps on gantry | — |  |
+| `/audio/ambience/elevator-cage.ogg` | Elevator cage | — |  |
+| `/audio/ambience/keypad-beeps.ogg` | Keypad beeps | Med Lab |  |
+| `/audio/ambience/terminal-chatter.ogg` | Terminal chatter | Colony Habitat | Keys, drive seeks, and confirmation tones. Period-correct: mechanical, not touchscreen. |
+| `/audio/ambience/comms-static.ogg` | Comms static | The Derelict | Carrier hiss with occasional squelch. No intelligible words — a GM will talk over this. |
+| `/audio/ambience/radio-traffic.ogg` | Radio traffic | Storm Surface | Clipped and unintelligible, heavily band-limited. Voices, not words. |
+| `/audio/ambience/klaxon-distant.ogg` | Distant klaxon | Colony Habitat | Two-tone, through a bulkhead. Leave the gaps long; the silence between is what does the work. |
+| `/audio/ambience/klaxon-close.ogg` | Klaxon | Med Lab | Same alarm, same room. Hot enough to be uncomfortable but still able to sit under dialogue. |
+| `/audio/ambience/pressure-alarm.ogg` | Pressure alarm | — |  |
+| `/audio/ambience/motion-tracker.ogg` | Motion tracker | Storm Surface | The ping everyone knows. Steady interval, about 1.2 s — record it holding, not approaching, so the GM decides when it closes. |
+| `/audio/ambience/geiger-ticks.ogg` | Geiger ticks | — |  |
+| `/audio/ambience/suit-breathing.ogg` | Suit breathing | Storm Surface | Inside the helmet: regulator click on the inhale, slight resonance on the out. Twelve breaths a minute, no faster. |
+| `/audio/ambience/heartbeat.ogg` | Heartbeat | — |  |
+| `/audio/ambience/low-breathing.ogg` | Low breathing | Hypersleep Bay, The Hive | Not the players' breathing. Slower than a person's, and never quite regular. |
+| `/audio/ambience/distant-voices.ogg` | Distant voices | Colony Habitat | A crowd through a wall. Nothing recognisable as language. |
+| `/audio/ambience/crowd-panic.ogg` | Panicked crowd | — |  |
+| `/audio/ambience/gunfire-distant.ogg` | Distant gunfire | — |  |
+| `/audio/ambience/vitals-monitor.ogg` | Vitals monitor | Hypersleep Bay, Med Lab | Steady blip around 60 per minute. Do not tune it to any scene tempo — it should sit against the music, not with it. |
+| `/audio/ambience/surgical-servo.ogg` | Surgical servo | Med Lab |  |
+| `/audio/ambience/incubator-hum.ogg` | Incubator hum | Med Lab |  |
+| `/audio/ambience/cryo-pods.ogg` | Cryo pods | Hypersleep Bay | Refrigeration hum plus a slow bellows, and a heart monitor so far under it you only notice when it stops. |
+| `/audio/ambience/storm-wind.ogg` | Storm wind | Storm Surface | Granular and full-band. Layer three separate wind takes so the loop point is impossible to find. |
+| `/audio/ambience/grit-on-visor.ogg` | Grit on the visor | Storm Surface | Fine particles on curved glass, close and dry. Sits directly against suit-breathing. |
+| `/audio/ambience/rain-on-hull.ogg` | Rain on the hull | — |  |
+| `/audio/ambience/distant-thunder.ogg` | Distant thunder | Storm Surface |  |
+| `/audio/ambience/resin-creak.ogg` | Resin creak | The Derelict, The Hive | Wet, organic, under strain. Somewhere between leather and cartilage. |
+| `/audio/ambience/wet-growth.ogg` | Wet growth | The Hive |  |
+| `/audio/ambience/egg-pulse.ogg` | Egg pulse | The Hive | Slow, fleshy, about one every four seconds. Low enough to feel. |
+| `/audio/ambience/skitter.ogg` | Skittering | The Hive | Many small feet on metal, arriving and leaving. Keep it panned wide and never centred. |
+| `/audio/ambience/tail-drag.ogg` | Tail drag | The Hive | Heavy, wet, dragging. Sparse — three or four passes in a minute is plenty. |
+| `/audio/ambience/creature-hiss.ogg` | Hiss | — |  |
+| `/audio/ambience/creature-screech.ogg` | Screech | — | Wet and above the music. This is the one bed allowed to break the mix. |
+| `/audio/ambience/vent-crawl.ogg` | Something in the vents | — |  |
 
 ## One-shots
 
 Fired by hand, played once over the top of everything on their own bus. Short — under a few seconds — and normalised a little hotter than the beds, around −16 LUFS, since they are meant to cut through.
+
+- **Impacts.** Under 3 s including tail. Loud, wide, and with the low end intact — these are meant to make people jump.
+- **Systems.** 1–2 s. Diegetic and dry; they should sound like they came from the room rather than the score.
+- **Weapons.** Under 2 s. Close-mic'd with a short room tail, no reverb wash.
+- **Creature.** 1–4 s. Wet, close, and allowed to be the loudest thing in the mix.
+- **Score.** 2–5 s with a natural tail. These are musical — write them in a key that works against every scene, or write one per scene key.
 
 | File | Name | Group |
 |---|---|---|
@@ -549,9 +633,9 @@ Fired by hand, played once over the top of everything on their own bus. Short �
 
 ## Producing this in order
 
-1. **One exploration motif per scene, all layers** (6 motifs, ~24 files). Every scene plays, and intensity works. This is the smallest thing worth demoing.
+1. **One exploration motif per scene, every level** (6 motifs, ~24 files). Every scene plays, and intensity works. This is the smallest thing worth demoing.
 2. **Scene beds** (36 files, some shared). Most of the atmosphere lives here, and beds are far quicker to produce than scored motifs.
-3. **The rest of each exploration pool** — the music stops feeling like a loop.
+3. **The rest of each exploration pool** — the shuffle has enough material to stop feeling like a loop.
 4. **Combat pools** — the combat toggle starts working.
 5. **The rest of the bed library**, for the search.
 
@@ -559,4 +643,6 @@ Until a file exists, keep it out of the resolver so the console stays quiet abou
 
 ### Levers, if this is too much
 
-Unique music scales with **motifs × scenes**, and file count with **× layers**. Today: 6 scenes × 12 motifs × ~5 intensity levels. Halving the pool to four exploration and two combat motifs per scene halves both, at the cost of the order coming round twice as fast. Dropping a scene removes its whole column. Cutting a layer removes one file per motif and one step from the intensity control.
+Unique music scales with **motifs × scenes**, and file count with **× layers**. Today: 6 scenes × 12 motifs × ~5 intensity levels. Halving the pool to four exploration and two combat motifs per scene halves both, at the cost of the order coming round twice as fast. Dropping a scene removes its whole column. Cutting a level removes one file per motif and one step from the intensity control.
+
+The honest floor: **6 scenes × 1 exploration motif × 4 levels = 24 music files** plus the beds. Everything above that buys variety, not function.
