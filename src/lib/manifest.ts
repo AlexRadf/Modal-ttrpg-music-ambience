@@ -1,19 +1,21 @@
-import { layerCount, motifUrls, bedUrl, variantMotifs } from "./audio/sources";
+import { intensityCount, motifUrls, bedUrl, oneShotUrl, variantMotifs } from "./audio/sources";
 import type { AmbienceConfig, MusicMode, SrcResolver } from "./types";
 
 /** One file the console will ask for. */
 export interface AssetEntry {
-  kind: "music" | "bed";
+  kind: "music" | "bed" | "one-shot";
   /** Where it will be fetched from, or null if nothing is mapped yet. */
   url: string | null;
   /** Human-readable description of what this file is. */
   label: string;
   bedId?: string;
+  oneShotId?: string;
+  group?: string;
   themeId?: string;
   motifId?: string;
   mode?: MusicMode;
-  /** 0-based; layer 0 is heard alone at intensity 1. */
-  layer?: number;
+  /** 1-based intensity level this file is the mix (or stem) for. */
+  intensity?: number;
   /** For music: which variants of the scene draw on this motif. */
   usedBy?: string[];
 }
@@ -37,20 +39,20 @@ export function assetManifest(config: AmbienceConfig, opts: ManifestOptions = {}
       const variants = theme.variants.filter((v) => variantMotifs(theme, v).some((m) => m.id === motif.id));
       // a variant may raise the layer count, so take the widest that uses it
       const widest = variants.reduce(
-        (n, v) => Math.max(n, layerCount(motif, v)),
-        layerCount(motif)
+        (n, v) => Math.max(n, intensityCount(motif, v)),
+        intensityCount(motif)
       );
-      const urls = motifUrls(theme, { ...motif, layers: widest }, undefined, opts.resolveSrc);
+      const urls = motifUrls(theme, { ...motif, intensities: widest }, undefined, opts.resolveSrc);
 
-      urls.forEach((url, layer) => {
+      urls.forEach((url, level) => {
         entries.push({
           kind: "music",
           url,
-          label: `${theme.name} · ${motif.id} · layer ${layer + 1}`,
+          label: `${theme.name} · ${motif.id} · intensity ${level + 1}`,
           themeId: theme.id,
           motifId: motif.id,
           mode: motif.mode,
-          layer,
+          intensity: level + 1,
           usedBy: variants.map((v) => v.name),
         });
       });
@@ -76,12 +78,24 @@ export function assetManifest(config: AmbienceConfig, opts: ManifestOptions = {}
     });
   }
 
+  for (const id of Object.keys(config.oneShots ?? {})) {
+    const def = config.oneShots![id];
+    entries.push({
+      kind: "one-shot",
+      url: oneShotUrl(config, id, opts.resolveSrc),
+      label: def.name,
+      oneShotId: id,
+      group: def.group,
+    });
+  }
+
   return entries;
 }
 
 export interface ManifestSummary {
   music: number;
   beds: number;
+  oneShots: number;
   total: number;
   /** Entries with no URL mapped — nothing will be fetched for these. */
   unmapped: number;
@@ -89,7 +103,7 @@ export interface ManifestSummary {
     themeId: string;
     name: string;
     motifs: number;
-    layers: number;
+    intensities: number;
     music: number;
     /** Seconds of unique music, if bpm and bars are set. */
     seconds: number;
@@ -106,13 +120,14 @@ export function manifestSummary(config: AmbienceConfig, opts: ManifestOptions = 
   return {
     music: entries.filter((e) => e.kind === "music").length,
     beds: entries.filter((e) => e.kind === "bed").length,
+    oneShots: entries.filter((e) => e.kind === "one-shot").length,
     total: entries.length,
     unmapped: entries.filter((e) => !e.url).length,
     byTheme: config.themes.map((theme) => ({
       themeId: theme.id,
       name: theme.name,
       motifs: theme.motifs.length,
-      layers: Math.max(...theme.motifs.map((m) => layerCount(m, theme.variants[0]))),
+      intensities: Math.max(...theme.motifs.map((m) => intensityCount(m, theme.variants[0]))),
       music: entries.filter((e) => e.kind === "music" && e.themeId === theme.id).length,
       seconds: theme.motifs.length * motifSeconds(theme.bpm, theme.bars),
     })),

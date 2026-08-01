@@ -1,5 +1,6 @@
 import type { AmbienceConfig } from "../types";
 import { BEDS } from "./beds";
+import { ONE_SHOTS } from "./one-shots";
 import { THEMES } from "./themes";
 
 /**
@@ -10,9 +11,9 @@ import { THEMES } from "./themes";
  *
  *   { ...ALIEN_PACK, themes: ALIEN_PACK.themes.concat(myScenes) }
  */
-export const ALIEN_PACK: AmbienceConfig = { beds: BEDS, themes: THEMES };
+export const ALIEN_PACK: AmbienceConfig = { beds: BEDS, themes: THEMES, oneShots: ONE_SHOTS };
 
 /** What the console uses when no config is given. */
 export const DEFAULT_CONFIG = ALIEN_PACK;
 
-export { BEDS, THEMES };
+export { BEDS, THEMES, ONE_SHOTS };

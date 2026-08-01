@@ -23,8 +23,8 @@ import type { MotifDef, MusicMode, ThemeDef } from "../types";
  */
 
 /** A scene's pool: `n` motifs for a stack, all the same length. */
-const pool = (mode: MusicMode, n: number, layers: number, bars: number): MotifDef[] =>
-  Array.from({ length: n }, (_, i) => ({ id: `${mode}-${i + 1}`, mode, layers, bars }));
+const pool = (mode: MusicMode, n: number, intensities: number, bars: number): MotifDef[] =>
+  Array.from({ length: n }, (_, i) => ({ id: `${mode}-${i + 1}`, mode, intensities, bars }));
 
 /** Motif ids `from`..`to` inclusive, for a variant's selection. */
 const pick = (mode: MusicMode, from: number, to: number): string[] =>
@@ -35,9 +35,12 @@ const pick = (mode: MusicMode, from: number, to: number): string[] =>
  * and three of them, so its exploration pool runs about four minutes before the
  * order refreshes.
  */
-const scenePool = (layers: number, bars: number) => pool("explore", 8, layers, bars).concat(pool("combat", 4, layers, bars));
-const early = pick("explore", 1, 6).concat(pick("combat", 1, 3));
-const late = pick("explore", 3, 8).concat(pick("combat", 2, 4));
+const scenePool = (intensities: number, bars: number) =>
+  pool("explore", 8, intensities, bars)
+    .concat(pool("combat", 4, intensities, bars))
+    .concat(pool("victory", 1, intensities, bars));
+const early = pick("explore", 1, 6).concat(pick("combat", 1, 3), ["victory-1"]);
+const late = pick("explore", 3, 8).concat(pick("combat", 2, 4), ["victory-1"]);
 
 export const THEMES: ThemeDef[] = [
   {
@@ -51,8 +54,8 @@ export const THEMES: ThemeDef[] = [
     bars: 11,
     motifs: scenePool(3, 11),
     variants: [
-      { id: "long-dark", name: "The long dark", motifs: early, layers: 3 },
-      { id: "wake", name: "Emergency wake", motifs: late, layers: 3 },
+      { id: "long-dark", name: "The long dark", motifs: early, intensities: 3 },
+      { id: "wake", name: "Emergency wake", motifs: late, intensities: 3 },
     ],
     ambience: ["cryo-pods", "ship-hum", "air-recycler", "condensation", "vitals-monitor", "low-breathing"],
   },
@@ -99,8 +102,8 @@ export const THEMES: ThemeDef[] = [
     bars: 14,
     motifs: scenePool(5, 14),
     variants: [
-      { id: "galleries", name: "Resin galleries", motifs: early, layers: 5 },
-      { id: "stirs", name: "The nest stirs", motifs: late, layers: 5 },
+      { id: "galleries", name: "Resin galleries", motifs: early, intensities: 5 },
+      { id: "stirs", name: "The nest stirs", motifs: late, intensities: 5 },
     ],
     ambience: ["resin-creak", "wet-growth", "egg-pulse", "skitter", "tail-drag", "low-breathing"],
   },

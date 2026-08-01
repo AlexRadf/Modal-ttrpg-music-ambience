@@ -5,4 +5,4 @@
 export { DEFAULT_CONFIG, ALIEN_PACK } from "./lib/data";
 export { assetManifest, manifestSummary, missingAssets, motifSeconds, poolSeconds } from "./lib/manifest";
 export { assetLayout } from "./lib/audio/resolve";
-export { layerCount, variantMotifs } from "./lib/audio/sources";
+export { intensityCount, variantMotifs } from "./lib/audio/sources";

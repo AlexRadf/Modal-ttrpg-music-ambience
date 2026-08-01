@@ -18,7 +18,7 @@ export const MAX_INTENSITY = 5;
 
 export const DEFAULTS = {
   crossfadeMs: 1800,
-  layerFadeMs: 900,
+  intensityFadeMs: 900,
   modeFadeMs: 700,
   bedFadeMs: 600,
   masterVolume: 0.8,
@@ -32,4 +32,7 @@ export const DEFAULTS = {
   maxDecodedBytes: 320 * 1024 * 1024,
   /** Start decoding the next motif this long before the current one ends. */
   motifQueueLeadMs: 10000,
+  /** Motifs that must pass before a passage can repeat. */
+  noRepeatWindow: 3,
+  intensityMode: "mixes" as const,
 };

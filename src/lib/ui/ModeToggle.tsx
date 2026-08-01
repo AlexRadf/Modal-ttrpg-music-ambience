@@ -1,11 +1,13 @@
-import { Footprints, Power, Swords } from "lucide-react";
+import { Footprints, PartyPopper, Power, Swords } from "lucide-react";
 import { T, softer } from "../theme";
 import type { Mode } from "../types";
 
 export const MODES: Array<{ id: Mode; label: string; Icon: typeof Power }> = [
   { id: "off", label: "Off", Icon: Power },
-  { id: "explore", label: "Exploration", Icon: Footprints },
+  { id: "explore", label: "Explore", Icon: Footprints },
   { id: "combat", label: "Combat", Icon: Swords },
+  // transitional: the swell plays, then the engine hands back to exploration
+  { id: "victory", label: "Victory", Icon: PartyPopper },
 ];
 
 export interface ModeToggleProps {
@@ -37,8 +39,8 @@ export function ModeToggle(props: ModeToggleProps) {
           position: "absolute",
           top: 4,
           bottom: 4,
-          width: "calc((100% - 8px) / 3)",
-          left: "calc(4px + " + idx + " * (100% - 8px) / 3)",
+          width: "calc((100% - 8px) / " + MODES.length + ")",
+          left: "calc(4px + " + idx + " * (100% - 8px) / " + MODES.length + ")",
           borderRadius: 12,
           background: props.mode === "off" ? "#FFF" : props.accent,
           boxShadow: softer,
@@ -60,9 +62,9 @@ export function ModeToggle(props: ModeToggleProps) {
               flex: 1,
               alignItems: "center",
               justifyContent: "center",
-              gap: 6,
+              gap: 5,
               padding: "10px 0",
-              fontSize: 12,
+              fontSize: 11.5,
               fontWeight: 600,
               color: on ? (m.id === "off" ? T.ink : "#FFF") : T.muted,
               transition: "color .25s ease",

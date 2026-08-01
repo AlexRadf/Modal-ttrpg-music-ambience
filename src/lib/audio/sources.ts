@@ -1,7 +1,7 @@
 import type { AmbienceConfig, MotifDef, MusicMode, SrcRequest, SrcResolver, ThemeDef, VariantDef } from "../types";
 
-export const MUSIC_MODES: MusicMode[] = ["explore", "combat"];
-export const DEFAULT_LAYERS = 4;
+export const MUSIC_MODES: MusicMode[] = ["explore", "combat", "victory"];
+export const DEFAULT_INTENSITIES = 4;
 
 /**
  * Where an asset's URL comes from, in one place: the config's own `src` wins,
@@ -16,22 +16,30 @@ export function bedUrl(config: AmbienceConfig, bedId: string, resolve?: SrcResol
   return sourceUrl({ kind: "bed", bedId }, config.beds[bedId]?.src, resolve);
 }
 
-/** Instrument stems in a motif. */
-export function layerCount(motif: MotifDef, variant?: VariantDef): number {
-  return motif.layers ?? variant?.layers ?? DEFAULT_LAYERS;
+export function oneShotUrl(config: AmbienceConfig, oneShotId: string, resolve?: SrcResolver): string | null {
+  return sourceUrl({ kind: "one-shot", oneShotId }, config.oneShots?.[oneShotId]?.src, resolve);
 }
 
-/** Stem URLs for one motif, indexed by layer. `null` means nothing was uploaded. */
+/** Intensity levels a motif was written at. */
+export function intensityCount(motif: MotifDef, variant?: VariantDef): number {
+  return motif.intensities ?? variant?.intensities ?? DEFAULT_INTENSITIES;
+}
+
+/**
+ * URLs for one motif, indexed by intensity level (0-based). `null` means
+ * nothing was uploaded. In `mixes` mode each entry is a complete mix of the
+ * passage; in `layers` mode each is an additive stem.
+ */
 export function motifUrls(
   theme: ThemeDef,
   motif: MotifDef,
   variant?: VariantDef,
   resolve?: SrcResolver
 ): Array<string | null> {
-  return Array.from({ length: layerCount(motif, variant) }, (_, layer) =>
+  return Array.from({ length: intensityCount(motif, variant) }, (_, i) =>
     sourceUrl(
-      { kind: "music", themeId: theme.id, motifId: motif.id, mode: motif.mode, layer },
-      motif.stems?.[layer],
+      { kind: "music", themeId: theme.id, motifId: motif.id, mode: motif.mode, intensity: i + 1 },
+      motif.mixes?.[i],
       resolve
     )
   );

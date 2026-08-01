@@ -8,6 +8,12 @@ export interface AssetLayoutOptions {
   /** Beds live in one flat folder; ids are filenames. */
   bedDir?: string;
   musicDir?: string;
+  oneShotDir?: string;
+  /**
+   * Filename stem for music files. Defaults to "intensity", giving
+   * `intensity-1.ogg`; pass "layer" when the files are additive stems.
+   */
+  musicPrefix?: string;
   /**
    * The URLs that actually exist. When given, anything not in the set resolves
    * to `null` — the engine skips it silently instead of reporting a missing
@@ -20,7 +26,8 @@ export interface AssetLayoutOptions {
  * The conventional layout:
  *
  *   {base}/{bedDir}/{bedId}.{ext}
- *   {base}/{musicDir}/{themeId}/{motifId}/layer-{n}.{ext}
+ *   {base}/{oneShotDir}/{oneShotId}.{ext}
+ *   {base}/{musicDir}/{themeId}/{motifId}/intensity-{n}.{ext}
  *
  * Motifs sit under the scene rather than under a variant, because two variants
  * of a scene share motifs — and so should share the files.
@@ -33,13 +40,17 @@ export function assetLayout(opts: AssetLayoutOptions): SrcResolver {
   const ext = opts.ext ?? "ogg";
   const bedDir = opts.bedDir ?? "ambience";
   const musicDir = opts.musicDir ?? "music";
+  const oneShotDir = opts.oneShotDir ?? "one-shots";
+  const musicPrefix = opts.musicPrefix ?? "intensity";
   const available = opts.available ? new Set(opts.available) : null;
 
   return (req) => {
     const url =
       req.kind === "bed"
         ? `${base}/${bedDir}/${req.bedId}.${ext}`
-        : `${base}/${musicDir}/${req.themeId}/${req.motifId}/layer-${req.layer + 1}.${ext}`;
+        : req.kind === "one-shot"
+          ? `${base}/${oneShotDir}/${req.oneShotId}.${ext}`
+          : `${base}/${musicDir}/${req.themeId}/${req.motifId}/${musicPrefix}-${req.intensity}.${ext}`;
     return !available || available.has(url) ? url : null;
   };
 }

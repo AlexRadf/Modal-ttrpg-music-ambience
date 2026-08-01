@@ -13,16 +13,23 @@ import type {
   VariantDef,
 } from "../types";
 import { AssetLoader } from "./loader";
-import { bedUrl, layerCount, motifUrls, variantMotifs } from "./sources";
+import { bedUrl, motifUrls, oneShotUrl, variantMotifs } from "./sources";
 import { clamp, ramp, shuffle } from "./util";
+
+/** One sounding source and its gain — a stem, or one intensity mix. */
+interface Voice {
+  level: number;
+  source: AudioBufferSourceNode;
+  gain: GainNode;
+  url: string;
+}
 
 /** One motif, scheduled or sounding. */
 interface Pass {
   motif: MotifDef;
   startAt: number;
   endAt: number;
-  sources: AudioBufferSourceNode[];
-  urls: string[];
+  voices: Voice[];
   released: boolean;
 }
 
@@ -32,11 +39,14 @@ interface Pass {
  */
 interface Chain {
   mode: MusicMode;
+  /** Victory plays one swell and hands back, rather than chaining. */
+  once: boolean;
   gain: GainNode;
-  /** Persist across motifs, so intensity survives the join. */
-  layers: GainNode[];
+  pool: MotifDef[];
   order: MotifDef[];
   cursor: number;
+  /** Motif ids recently heard, newest first — the no-repeat window. */
+  recent: string[];
   passes: Pass[];
   /** Fires shortly before the sounding motif ends, to queue its successor. */
   timer: number | null;
@@ -84,12 +94,14 @@ export class AmbienceEngine {
   private master!: GainNode;
   private musicBus!: GainNode;
   private ambienceBus!: GainNode;
+  private sfxBus!: GainNode;
   private loader!: AssetLoader;
 
   private deck: Deck | null = null;
   private beds = new Map<string, Bed>();
   private unavailable = new Set<string>();
   private listeners = new Set<(s: EngineStatus) => void>();
+  private autoModeListeners = new Set<(mode: Mode) => void>();
 
   private scene: { themeId: string; variantId: string } | null = null;
   private mode: Mode = "off";
@@ -102,6 +114,7 @@ export class AmbienceEngine {
     errors: [],
     unavailableBeds: [],
     motifId: null,
+    mode: "off",
     decodedBytes: 0,
   };
 
@@ -111,7 +124,9 @@ export class AmbienceEngine {
   constructor(private config: AmbienceConfig, options: EngineOptions = {}) {
     this.opts = {
       crossfadeMs: options.crossfadeMs ?? DEFAULTS.crossfadeMs,
-      layerFadeMs: options.layerFadeMs ?? DEFAULTS.layerFadeMs,
+      intensityFadeMs: options.intensityFadeMs ?? DEFAULTS.intensityFadeMs,
+      intensityMode: options.intensityMode ?? DEFAULTS.intensityMode,
+      noRepeatWindow: options.noRepeatWindow ?? DEFAULTS.noRepeatWindow,
       modeFadeMs: options.modeFadeMs ?? DEFAULTS.modeFadeMs,
       bedFadeMs: options.bedFadeMs ?? DEFAULTS.bedFadeMs,
       masterVolume: options.masterVolume ?? DEFAULTS.masterVolume,
@@ -128,6 +143,17 @@ export class AmbienceEngine {
     this.listeners.add(fn);
     fn(this.status);
     return () => this.listeners.delete(fn);
+  }
+
+  /**
+   * Fires only when the engine moves mode by itself — today that means a victory
+   * swell finishing and handing back to exploration. Deliberately a one-way
+   * notification rather than a mirrored value: binding the host's mode state to
+   * an engine field in both directions oscillates.
+   */
+  onAutoMode(fn: (mode: Mode) => void): () => void {
+    this.autoModeListeners.add(fn);
+    return () => this.autoModeListeners.delete(fn);
   }
 
   private emit(patch: Partial<EngineStatus>) {
@@ -173,6 +199,11 @@ export class AmbienceEngine {
     this.ambienceBus.gain.value = 1;
     this.ambienceBus.connect(this.master);
 
+    // stingers sit on their own bus so the ambience trim never ducks them
+    this.sfxBus = ctx.createGain();
+    this.sfxBus.gain.value = 1;
+    this.sfxBus.connect(this.master);
+
     this.loader = new AssetLoader(ctx, {
       maxDecodedBytes: this.opts.maxDecodedBytes,
       fetchInit: this.opts.fetchInit,
@@ -204,6 +235,7 @@ export class AmbienceEngine {
     for (const [, bed] of this.beds) this.killBed(bed, 0);
     this.beds.clear();
     this.listeners.clear();
+    this.autoModeListeners.clear();
     if (this.ctx && this.ctx.state !== "closed") void this.ctx.close();
     this.ctx = null;
   }
@@ -253,12 +285,27 @@ export class AmbienceEngine {
 
   setIntensity(n: Intensity) {
     this.intensity = clamp(n, 1, MAX_INTENSITY) as Intensity;
-    if (this.deck) for (const chain of this.deck.chains) this.applyIntensity(chain, this.opts.layerFadeMs / 1000);
+    if (!this.deck || !this.ctx) return;
+    const fade = this.opts.intensityFadeMs / 1000;
+
+    for (const chain of this.deck.chains) {
+      for (const pass of chain.passes) {
+        if (this.opts.intensityMode === "layers") {
+          // additive stems: gate the ones above the level
+          for (const voice of pass.voices) {
+            ramp(voice.gain.gain, voice.level <= this.intensity ? 1 : 0, fade, this.ctx);
+          }
+        } else {
+          void this.swapPassIntensity(chain, pass, fade);
+        }
+      }
+    }
   }
 
   setMode(mode: Mode) {
     const previous = this.mode;
     this.mode = mode;
+    this.emit({ mode });
     if (!this.ctx) {
       if (mode !== "off" && this.scene) void this.setScene(this.scene.themeId, this.scene.variantId);
       return;
@@ -321,28 +368,23 @@ export class AmbienceEngine {
       return null;
     }
 
-    const layers = Math.max(...pool.map((m) => layerCount(m, deck.variant)));
     const gain = ctx.createGain();
     gain.gain.value = 0;
     gain.connect(deck.out);
 
     const chain: Chain = {
       mode,
+      once: mode === "victory",
       gain,
-      layers: Array.from({ length: layers }, () => {
-        const g = ctx.createGain();
-        g.gain.value = 0;
-        g.connect(gain);
-        return g;
-      }),
+      pool,
       order: shuffle(pool),
       cursor: 0,
+      recent: [],
       passes: [],
       timer: null,
       stopped: false,
     };
 
-    this.applyIntensity(chain, 0);
     const started = await this.playNext(deck, chain, ctx.currentTime + 0.12, token);
     if (!started) {
       gain.disconnect();
@@ -368,6 +410,10 @@ export class AmbienceEngine {
       if (chain) {
         this.stopChain(chain, 0);
         deck.chains = deck.chains.filter((c) => c !== chain);
+      } else if (mode === "victory" && this.mode === "victory") {
+        // nothing was scored for this scene's victory; carry on exploring
+        this.setMode("explore");
+        for (const fn of this.autoModeListeners) fn("explore");
       }
       return;
     }
@@ -378,75 +424,214 @@ export class AmbienceEngine {
   }
 
   /**
-   * Loads the next motif in the order and schedules it to start exactly when
-   * `at` arrives. Because the start time is on the audio clock and the buffers
-   * are already decoded, the join between motifs is sample-exact.
+   * The next motif, honouring the no-repeat window: a passage heard in the last
+   * `noRepeatWindow` motifs is stepped over rather than played again. The bag is
+   * still a shuffle, so every motif gets its turn within a cycle.
    */
-  private async playNext(deck: Deck, chain: Chain, at: number, token: number): Promise<boolean> {
+  private pickMotif(chain: Chain): MotifDef {
+    if (chain.cursor >= chain.order.length) {
+      chain.order = shuffle(chain.order);
+      chain.cursor = 0;
+    }
+
+    const window = Math.min(this.opts.noRepeatWindow, Math.max(0, chain.pool.length - 1));
+    const blocked = chain.recent.slice(0, window);
+
+    let i = chain.cursor;
+    while (i < chain.order.length && blocked.includes(chain.order[i].id)) i++;
+    // a pool smaller than the window can leave nothing eligible; take the next
+    if (i >= chain.order.length) i = chain.cursor;
+
+    const [motif] = chain.order.splice(i, 1);
+    chain.order.splice(chain.cursor, 0, motif);
+    chain.cursor++;
+    chain.recent = [motif.id, ...chain.recent].slice(0, 12);
+    return motif;
+  }
+
+  /**
+   * Loads the next motif and schedules it to start exactly when `at` arrives.
+   * Because the start time is on the audio clock and the buffers are already
+   * decoded, the join between motifs is sample-exact.
+   */
+  private async playNext(deck: Deck, chain: Chain, at: number, token: number, attempt = 0): Promise<boolean> {
     const ctx = this.ctx;
     if (!ctx || chain.stopped || token !== this.generation) return false;
 
-    if (chain.cursor >= chain.order.length) {
-      // a fresh shuffle rather than the same rotation twice
-      chain.order = shuffle(chain.order, chain.order[chain.order.length - 1]?.id);
-      chain.cursor = 0;
-    }
-    const motif = chain.order[chain.cursor++];
-    const urls = motifUrls(deck.theme, motif, deck.variant, this.opts.resolveSrc);
-
-    const settled = await Promise.all(
-      urls.map((url) => (url ? this.loader.load(url).catch(() => null) : Promise.resolve(null)))
-    );
-    if (!this.ctx || chain.stopped || token !== this.generation) return false;
-
-    const buffers = settled.filter((b): b is AudioBuffer => !!b);
-    if (buffers.length === 0) {
-      this.report({ url: motif.id, message: "no stems could be loaded" });
+    const motif = this.pickMotif(chain);
+    const pass = await this.startPass(deck, chain, motif, at, token);
+    if (!pass) {
       // skip a motif that cannot play rather than stalling the chain
-      return chain.order.length > 1 ? this.playNext(deck, chain, at, token) : false;
+      return attempt + 1 < chain.pool.length ? this.playNext(deck, chain, at, token, attempt + 1) : false;
+    }
+
+    if (!chain.stopped) this.emit({ motifId: motif.id });
+    if (chain.timer !== null) window.clearTimeout(chain.timer);
+
+    if (chain.once) {
+      // a victory swell is not a loop: when it lands, hand back to exploration
+      chain.timer = window.setTimeout(
+        () => {
+          chain.timer = null;
+          if (chain.stopped || token !== this.generation || this.mode !== "victory") return;
+          this.setMode("explore");
+          for (const fn of this.autoModeListeners) fn("explore");
+        },
+        Math.max(0, pass.endAt - ctx.currentTime) * 1000
+      );
+    } else {
+      // Queue the successor a little before this one ends — not now. Scheduling
+      // the whole order up front would decode every motif in the pool and defeat
+      // the point; the lead just has to cover a fetch and decode, and never more
+      // than half the motif or a short one would re-arm instantly and run away.
+      const duration = pass.endAt - pass.startAt;
+      const lead = Math.min(this.opts.motifQueueLeadMs / 1000, duration / 2);
+      const delay = Math.max(0, pass.endAt - lead - ctx.currentTime) * 1000;
+      chain.timer = window.setTimeout(() => {
+        chain.timer = null;
+        void this.playNext(deck, chain, pass.endAt, token);
+      }, delay);
+    }
+
+    // and let the finished one go, so memory stays at two motifs
+    this.retirePass(chain, pass);
+    return true;
+  }
+
+  /**
+   * Starts one motif. In `layers` mode every stem sounds at once and intensity
+   * gates them; in `mixes` mode only the current level sounds and intensity
+   * crossfades to another mix of the same passage.
+   */
+  private async startPass(
+    deck: Deck,
+    chain: Chain,
+    motif: MotifDef,
+    at: number,
+    token: number
+  ): Promise<Pass | null> {
+    const urls = motifUrls(deck.theme, motif, deck.variant, this.opts.resolveSrc);
+    const wanted =
+      this.opts.intensityMode === "layers"
+        ? urls.map((url, i) => ({ url, level: i + 1 }))
+        : [{ url: urls[this.levelFor(urls.length) - 1] ?? null, level: this.levelFor(urls.length) }];
+
+    const present = wanted.filter((w): w is { url: string; level: number } => !!w.url);
+    if (present.length === 0) return null;
+
+    const buffers = await Promise.all(present.map((w) => this.loader.load(w.url).catch(() => null)));
+    const ctx = this.ctx;
+    if (!ctx || chain.stopped || token !== this.generation) return null;
+
+    const ok = present
+      .map((w, i) => ({ ...w, buffer: buffers[i] }))
+      .filter((w): w is { url: string; level: number; buffer: AudioBuffer } => !!w.buffer);
+    if (ok.length === 0) {
+      this.report({ url: motif.id, message: "no audio could be loaded for this motif" });
+      return null;
     }
 
     // decoding may have overrun the join; start now and take the small gap
     const startAt = Math.max(at, ctx.currentTime + 0.02);
-    const duration = Math.max(...buffers.map((b) => b.duration));
-    const pass: Pass = { motif, startAt, endAt: startAt + duration, sources: [], urls: [], released: false };
+    const duration = Math.max(...ok.map((o) => o.buffer.duration));
+    const pass: Pass = { motif, startAt, endAt: startAt + duration, voices: [], released: false };
 
-    settled.forEach((buffer, layer) => {
-      if (!buffer) return;
-      const target = chain.layers[Math.min(layer, chain.layers.length - 1)];
-      const source = ctx.createBufferSource();
-      source.buffer = buffer;
-      source.connect(target);
-      source.start(startAt);
-      pass.sources.push(source);
-
-      const url = urls[layer];
-      if (url) {
-        this.loader.pin(url);
-        pass.urls.push(url);
-      }
-    });
+    for (const o of ok) {
+      pass.voices.push(this.startVoice(chain, o.url, o.buffer, o.level, startAt, 0, this.voiceGain(o.level)));
+    }
 
     chain.passes.push(pass);
-    if (!chain.stopped) this.emit({ motifId: motif.id });
+    return pass;
+  }
 
-    // Queue the successor a little before this one ends — not now. Scheduling
-    // the whole order up front would decode every motif in the pool and defeat
-    // the point; the lead just has to cover a fetch and decode.
-    // never lead by more than half the motif, or a motif shorter than the lead
-    // would queue its successor instantly and run away down the pool
-    const lead = Math.min(this.opts.motifQueueLeadMs / 1000, duration / 2);
-    const delay = Math.max(0, pass.endAt - lead - ctx.currentTime) * 1000;
-    if (chain.timer !== null) window.clearTimeout(chain.timer);
-    chain.timer = window.setTimeout(() => {
-      chain.timer = null;
-      void this.playNext(deck, chain, pass.endAt, token);
-    }, delay);
+  /** The intensity level actually available, given how many were authored. */
+  private levelFor(available: number): number {
+    return Math.max(1, Math.min(this.intensity, available));
+  }
 
-    // and let the finished one go, so memory stays at two motifs
-    this.retirePass(chain, pass);
+  private voiceGain(level: number): number {
+    return this.opts.intensityMode === "layers" ? (level <= this.intensity ? 1 : 0) : 1;
+  }
 
-    return true;
+  private startVoice(
+    chain: Chain,
+    url: string,
+    buffer: AudioBuffer,
+    level: number,
+    when: number,
+    offset: number,
+    gainValue: number
+  ): Voice {
+    const ctx = this.ctx!;
+    const gain = ctx.createGain();
+    gain.gain.value = gainValue;
+    gain.connect(chain.gain);
+
+    const source = ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(gain);
+    this.loader.pin(url);
+    source.start(when, offset);
+
+    return { level, source, gain, url };
+  }
+
+  /**
+   * Crossfades a pass to a different intensity mix of the *same* motif, entered
+   * at the same point in the passage — which is why every level has to exist for
+   * every motif.
+   */
+  private async swapPassIntensity(chain: Chain, pass: Pass, fade: number): Promise<void> {
+    const deck = this.deck;
+    if (!deck || !this.ctx || pass.released || chain.stopped) return;
+
+    const urls = motifUrls(deck.theme, pass.motif, deck.variant, this.opts.resolveSrc);
+    const level = this.levelFor(urls.length);
+    if (pass.voices.length === 1 && pass.voices[0].level === level) return;
+
+    const url = urls[level - 1];
+    if (!url) return;
+
+    let buffer: AudioBuffer;
+    try {
+      buffer = await this.loader.load(url);
+    } catch {
+      return;
+    }
+    // the slider may have moved again while this decoded
+    if (!this.ctx || pass.released || chain.stopped || this.levelFor(urls.length) !== level) return;
+
+    const now = this.ctx.currentTime;
+    if (pass.startAt > now + 0.02) {
+      // still queued: swap it outright, same motif, same slot
+      const old = pass.voices;
+      pass.voices = [this.startVoice(chain, url, buffer, level, pass.startAt, 0, 1)];
+      for (const v of old) this.endVoice(v, 0);
+      return;
+    }
+
+    const when = now + 0.05;
+    const offset = when - pass.startAt;
+    if (offset >= buffer.duration) return;
+
+    const next = this.startVoice(chain, url, buffer, level, when, offset, 0);
+    ramp(next.gain.gain, 1, fade, this.ctx);
+    const old = pass.voices;
+    pass.voices = [next];
+    for (const v of old) this.endVoice(v, fade);
+  }
+
+  private endVoice(voice: Voice, fade: number) {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    ramp(voice.gain.gain, 0, fade, ctx);
+    try {
+      voice.source.stop(ctx.currentTime + fade + 0.05);
+    } catch {
+      /* already stopped */
+    }
+    this.loader.unpin(voice.url);
+    window.setTimeout(() => voice.gain.disconnect(), (fade + 0.25) * 1000);
   }
 
   private retirePass(chain: Chain, pass: Pass) {
@@ -455,23 +640,17 @@ export class AmbienceEngine {
     window.setTimeout(() => {
       if (pass.released) return;
       pass.released = true;
-      for (const source of pass.sources) {
+      for (const voice of pass.voices) {
         try {
-          source.disconnect();
+          voice.source.disconnect();
         } catch {
           /* already gone */
         }
+        voice.gain.disconnect();
+        this.loader.unpin(voice.url);
       }
-      for (const url of pass.urls) this.loader.unpin(url);
       chain.passes = chain.passes.filter((p) => p !== pass);
     }, Math.max(0, after));
-  }
-
-  private applyIntensity(chain: Chain, fade: number) {
-    if (!this.ctx) return;
-    chain.layers.forEach((gain, i) => {
-      ramp(gain.gain, i < this.intensity ? 1 : 0, fade, this.ctx!);
-    });
   }
 
   private retireDeck() {
@@ -479,6 +658,44 @@ export class AmbienceEngine {
     if (this.deck) this.stopDeck(this.deck, this.opts.modeFadeMs / 1000);
     this.deck = null;
     this.emit({ motifId: null });
+  }
+
+  /* ------------------------------------------------------------ one-shots - */
+
+  /**
+   * Fires a stinger over the top of whatever is playing. Nothing is held: the
+   * buffer is unpinned as soon as it has finished, and repeated presses layer
+   * rather than cutting each other off.
+   */
+  async fireOneShot(oneShotId: string): Promise<void> {
+    this.ensure();
+    const url = oneShotUrl(this.config, oneShotId, this.opts.resolveSrc);
+    if (!url) {
+      this.report({ url: oneShotId, message: "no audio uploaded for this one-shot" });
+      return;
+    }
+
+    let buffer: AudioBuffer;
+    try {
+      buffer = await this.loader.load(url);
+    } catch {
+      return;
+    }
+    if (!this.ctx) return;
+
+    const gain = this.ctx.createGain();
+    gain.gain.value = this.config.oneShots?.[oneShotId]?.trim ?? 1;
+    gain.connect(this.sfxBus);
+
+    const source = this.ctx.createBufferSource();
+    source.buffer = buffer;
+    source.connect(gain);
+    this.loader.pin(url);
+    source.start();
+    source.onended = () => {
+      gain.disconnect();
+      this.loader.unpin(url);
+    };
   }
 
   private stopDeck(deck: Deck, fade: number) {
@@ -502,16 +719,16 @@ export class AmbienceEngine {
     ramp(chain.gain.gain, 0, fade, this.ctx);
     const at = this.ctx.currentTime + fade + 0.05;
     for (const pass of chain.passes) {
-      for (const source of pass.sources) {
+      for (const voice of pass.voices) {
         try {
-          source.stop(at);
+          voice.source.stop(at);
         } catch {
           /* already stopped */
         }
       }
       if (!pass.released) {
         pass.released = true;
-        for (const url of pass.urls) this.loader.unpin(url);
+        for (const voice of pass.voices) this.loader.unpin(voice.url);
       }
     }
     window.setTimeout(() => chain.gain.disconnect(), (fade + 0.3) * 1000);

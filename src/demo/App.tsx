@@ -14,7 +14,16 @@ export function App() {
   const params = new URLSearchParams(window.location.search);
   const base = params.get("assets") || "/audio";
   const ext = params.get("ext") || "ogg";
-  const options = useMemo(() => ({ resolveSrc: assetLayout({ base, ext }) }), [base, ext]);
+  // ?intensity=layers plays additive stems that sum; the default crossfades
+  // between complete mixes of the same motif
+  const intensityMode = params.get("intensity") === "layers" ? ("layers" as const) : ("mixes" as const);
+  const options = useMemo(
+    () => ({
+      resolveSrc: assetLayout({ base, ext, musicPrefix: intensityMode === "layers" ? "layer" : "intensity" }),
+      intensityMode,
+    }),
+    [base, ext, intensityMode]
+  );
 
   return (
     <AmbienceProvider persistKey="ambience-demo" options={options}>
@@ -46,6 +55,12 @@ export function App() {
 
 function HostControls(props: { base: string }) {
   const { state, actions, status, theme, variant } = useAmbience();
+  const params = new URLSearchParams(window.location.search);
+  const intensityMode = params.get("intensity") === "layers" ? "layers" : "mixes";
+  const swap = (mode: string) => {
+    params.set("intensity", mode);
+    window.location.search = params.toString();
+  };
 
   const button = (label: string, onClick: () => void, primary = false) => (
     <button
@@ -75,6 +90,30 @@ function HostControls(props: { base: string }) {
         {button("Combat ends", () => actions.setMode("explore"))}
         {button("Turn it down", () => actions.setIntensity(1))}
         {button("Something is wrong", () => actions.setBedLevel("low-breathing", 2))}
+        {button("Victory", () => actions.setMode("victory"))}
+      </div>
+
+      <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
+        <span style={{ fontSize: 12.5, color: T.faint }}>intensity model:</span>
+        {(["mixes", "layers"] as const).map((m) => (
+          <button
+            key={m}
+            onClick={() => swap(m)}
+            style={{
+              borderRadius: 999,
+              padding: "5px 12px",
+              fontSize: 12,
+              fontWeight: 550,
+              fontFamily: "inherit",
+              cursor: "pointer",
+              color: intensityMode === m ? "#FFF" : T.muted,
+              background: intensityMode === m ? T.ink : T.surface,
+              border: "1px solid " + (intensityMode === m ? "transparent" : T.line),
+            }}
+          >
+            {m === "mixes" ? "crossfade mixes" : "additive stems"}
+          </button>
+        ))}
       </div>
 
       <div
@@ -102,7 +141,7 @@ function HostControls(props: { base: string }) {
           {(status.decodedBytes / (1024 * 1024)).toFixed(1)} MB
         </div>
         <div style={{ color: T.faint }}>
-          serving audio from <code style={{ fontFamily: "ui-monospace, monospace" }}>{props.base}</code> ·{" "}
+          {intensityMode} · serving audio from <code style={{ fontFamily: "ui-monospace, monospace" }}>{props.base}</code> ·{" "}
           {status.running ? "context running" : "context idle"}
           {status.loading ? " · loading" : ""}
         </div>

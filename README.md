@@ -42,22 +42,33 @@ its order coming round, and — because only the sounding motif and its successo
 resident — memory stays flat however long the session lasts. A five-minute stem would be
 about 106 MB decoded; this is what avoids that.
 
-**Vertical layering.** Inside a motif, the instrument stems all start on the same sample
-and are gated by gain: strings, then piano on top, then bass, then a counter-melody.
-Intensity moves those gains, so it adds an instrument to a passage already in progress
-rather than restarting anything. The gains belong to the chain rather than the motif, so
-the setting carries across the join untouched.
+**Intensity crossfades in place.** Each motif is recorded at several levels — strings,
+then strings with piano, then bass, then a counter-melody. Changing level crossfades to
+that level of the *same motif at the same point in the passage*, so the arrangement
+thickens without the music restarting. Every level therefore has to exist for every motif.
+
+The additive alternative — stems that sum, so level 3 means stems 1, 2 and 3 sounding
+together — is built in as `intensityMode: "layers"`, and the demo can A/B the two on the
+same material. `mixes` is the default: one file sounds at a time, so it is also lighter.
+
+**Nothing repeats too soon.** The motif order is a shuffled bag, and a passage heard in
+the last few motifs is stepped over rather than played again (`noRepeatWindow`, default 3).
 
 **Power-summed ambience.** Uncorrelated beds sum in power, so `n` beds at equal level run
 `10·log10(n)` dB hot. The ambience bus is divided by `√n`, which cancels it exactly — the
 room holds its level whether one bed is up or six.
 
-**Two pools, not two mixes.** Exploration and combat are separate motif pools, so combat
-can be its own music rather than a busier arrangement of the same cue. Switching crossfades
-from one pool into the other, and only the active pool is loaded.
+**Separate pools per mode.** Exploration, combat and victory are separate motif pools, so
+combat can be its own music rather than a busier arrangement of the same cue. Switching
+crossfades from one pool into the other, and only the active pool is loaded.
 
-Modes: `off` silences music only. Ambience beds keep playing, which is usually what you
-want when the table stops for a rules argument.
+Modes: `off` silences music only — ambience beds keep playing, which is usually what you
+want when the table stops for a rules argument. `victory` is transitional: it plays one
+swell and hands back to `explore` by itself.
+
+**One-shots.** `actions.fireOneShot(id)` fires a stinger over the top of everything, on
+its own bus so the ambience trim never ducks it. The library is in the config; the console
+does not yet have a UI strip for them.
 
 ## Pointing it at your files
 
@@ -70,7 +81,8 @@ the conventional arrangement:
 
 ```
 /audio/ambience/{bedId}.ogg
-/audio/music/{themeId}/{motifId}/layer-{1..n}.ogg
+/audio/music/{themeId}/{motifId}/intensity-{1..n}.ogg
+/audio/one-shots/{oneShotId}.ogg
 ```
 
 Motifs sit under the scene, not under a variant, because variants are selections from the
@@ -83,7 +95,7 @@ uploaded and the engine skips it silently instead of reporting it missing:
 resolveSrc: (req) =>
   req.kind === "bed"
     ? uploads.beds[req.bedId] ?? null
-    : uploads.stems[`${req.themeId}/${req.motifId}/${req.layer}`] ?? null;
+    : uploads.stems[`${req.themeId}/${req.motifId}/${req.intensity}`] ?? null;
 ```
 
 Per-asset URLs in the config win over the resolver, which is the escape hatch for one
@@ -100,19 +112,19 @@ CORS headers — audio is fetched and decoded, not streamed through an `<audio>`
 Call `engine.preload(themeId, variantId)` to warm the cache — worth doing when the
 console opens, so the first press of play does not wait on ten downloads.
 
-## Authoring the stems
+## Authoring the music
 
-A motif is one passage, recorded once per instrument layer. Layer 1 is heard alone at
-intensity 1; each further layer is added on top, and every file contains **only its own
-instruments** — the console sums them, so do not print running mixes.
+A motif is one passage, bounced once per intensity level. Level 1 is the thinnest
+arrangement, and each level up adds instruments — each file is a **complete mix at that
+level**, not an additive stem.
 
-- Bounce all of a motif's layers from one session with the others muted. They start on the
-  same sample and are gated by gain, so anything else drifts.
-- **Every stem of a motif must be exactly the same length**, with no silence at either end:
-  motifs are chained by scheduling the next to start the sample after the last ends.
+- Bounce every level of a motif from one session so they line up sample for sample. The
+  crossfade enters the new level at the position the old one had reached.
+- **Every intensity level of a motif must be exactly the same length**, with no silence at
+  either end: motifs are chained by scheduling the next to start the sample after the last
+  ends, and levels are crossfaded at a shared position.
 - Ring-outs that cross a join should be printed into the head of the next motif.
-- Layer count is per motif (or per variant): `layers: 3` gives a three-step intensity
-  control.
+- Level count is per motif (or per variant): `intensities: 3` gives a three-step control.
 - The full spec, including exact motif lengths per scene, is in [ASSETS.md](ASSETS.md).
 
 ## When a file is missing
@@ -121,8 +133,8 @@ There is no fallback, so failures are made visible rather than papered over:
 
 - A bed whose file will not load is marked **unavailable** in the list, greyed with its
   level dots unlit, and left out of the bus trim. Clicking it retries.
-- A music stem that fails is skipped; the rest of the motif still plays. A motif with no
-  loadable stems is skipped and the chain moves to the next one. If a whole scene fails,
+- A music file that fails is skipped, and a motif with nothing loadable is stepped over so
+  the chain keeps moving. If a whole scene fails,
   whatever was already playing keeps playing rather than dropping to silence.
 - Every failure lands in `status.errors` as `{ url, message }`, so you can surface them in
   your own UI. The demo prints them.
@@ -217,8 +229,9 @@ const outstanding = missingAssets(DEFAULT_CONFIG, await listUploadedUrls());
 ## Signal flow
 
 ```
-master ─┬─ music ── deck ── chain ── layer 1..n ← motif stems
-        └─ ambience ── bed × n              (bus × 1/√n)
+master ─┬─ music ── deck ── chain ── motif ── intensity level
+        ├─ ambience ── bed × n              (bus × 1/√n)
+        └─ sfx ── one-shots
 ```
 
 `src/lib/audio/engine.ts` owns all of it and has no React in it, so it can be driven from
