@@ -36,11 +36,9 @@ const pick = (mode: MusicMode, from: number, to: number): string[] =>
  * order refreshes.
  */
 const scenePool = (intensities: number, bars: number) =>
-  pool("explore", 8, intensities, bars)
-    .concat(pool("combat", 4, intensities, bars))
-    .concat(pool("victory", 1, intensities, bars));
-const early = pick("explore", 1, 6).concat(pick("combat", 1, 3), ["victory-1"]);
-const late = pick("explore", 3, 8).concat(pick("combat", 2, 4), ["victory-1"]);
+  pool("explore", 8, intensities, bars).concat(pool("combat", 4, intensities, bars));
+const early = pick("explore", 1, 6).concat(pick("combat", 1, 3));
+const late = pick("explore", 3, 8).concat(pick("combat", 2, 4));
 
 export const THEMES: ThemeDef[] = [
   {

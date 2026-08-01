@@ -205,12 +205,11 @@ for (const theme of config.themes) {
     );
   }
   w();
-  for (const mode of ["explore", "combat", "victory"]) {
+  for (const mode of ["explore", "combat"]) {
     const rows = music.filter((m) => m.themeId === theme.id && m.mode === mode);
     const ids = [...new Set(rows.map((r) => r.motifId))];
     if (ids.length === 0) continue;
-    const label = mode === "explore" ? "Exploration" : mode === "combat" ? "Combat" : "Victory";
-    w(`**${label} pool** — ${ids.length} motif${ids.length === 1 ? "" : "s"}`);
+    w(`**${mode === "explore" ? "Exploration" : "Combat"} pool** — ${ids.length} motifs`);
     w();
     w("```");
     for (const e of rows) w(e.url);

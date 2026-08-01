@@ -39,8 +39,6 @@ interface Pass {
  */
 interface Chain {
   mode: MusicMode;
-  /** Victory plays one swell and hands back, rather than chaining. */
-  once: boolean;
   gain: GainNode;
   pool: MotifDef[];
   order: MotifDef[];
@@ -101,7 +99,6 @@ export class AmbienceEngine {
   private beds = new Map<string, Bed>();
   private unavailable = new Set<string>();
   private listeners = new Set<(s: EngineStatus) => void>();
-  private autoModeListeners = new Set<(mode: Mode) => void>();
 
   private scene: { themeId: string; variantId: string } | null = null;
   private mode: Mode = "off";
@@ -114,7 +111,6 @@ export class AmbienceEngine {
     errors: [],
     unavailableBeds: [],
     motifId: null,
-    mode: "off",
     decodedBytes: 0,
   };
 
@@ -143,17 +139,6 @@ export class AmbienceEngine {
     this.listeners.add(fn);
     fn(this.status);
     return () => this.listeners.delete(fn);
-  }
-
-  /**
-   * Fires only when the engine moves mode by itself — today that means a victory
-   * swell finishing and handing back to exploration. Deliberately a one-way
-   * notification rather than a mirrored value: binding the host's mode state to
-   * an engine field in both directions oscillates.
-   */
-  onAutoMode(fn: (mode: Mode) => void): () => void {
-    this.autoModeListeners.add(fn);
-    return () => this.autoModeListeners.delete(fn);
   }
 
   private emit(patch: Partial<EngineStatus>) {
@@ -235,7 +220,6 @@ export class AmbienceEngine {
     for (const [, bed] of this.beds) this.killBed(bed, 0);
     this.beds.clear();
     this.listeners.clear();
-    this.autoModeListeners.clear();
     if (this.ctx && this.ctx.state !== "closed") void this.ctx.close();
     this.ctx = null;
   }
@@ -305,7 +289,6 @@ export class AmbienceEngine {
   setMode(mode: Mode) {
     const previous = this.mode;
     this.mode = mode;
-    this.emit({ mode });
     if (!this.ctx) {
       if (mode !== "off" && this.scene) void this.setScene(this.scene.themeId, this.scene.variantId);
       return;
@@ -374,7 +357,6 @@ export class AmbienceEngine {
 
     const chain: Chain = {
       mode,
-      once: mode === "victory",
       gain,
       pool,
       order: shuffle(pool),
@@ -410,10 +392,6 @@ export class AmbienceEngine {
       if (chain) {
         this.stopChain(chain, 0);
         deck.chains = deck.chains.filter((c) => c !== chain);
-      } else if (mode === "victory" && this.mode === "victory") {
-        // nothing was scored for this scene's victory; carry on exploring
-        this.setMode("explore");
-        for (const fn of this.autoModeListeners) fn("explore");
       }
       return;
     }
@@ -468,30 +446,17 @@ export class AmbienceEngine {
     if (!chain.stopped) this.emit({ motifId: motif.id });
     if (chain.timer !== null) window.clearTimeout(chain.timer);
 
-    if (chain.once) {
-      // a victory swell is not a loop: when it lands, hand back to exploration
-      chain.timer = window.setTimeout(
-        () => {
-          chain.timer = null;
-          if (chain.stopped || token !== this.generation || this.mode !== "victory") return;
-          this.setMode("explore");
-          for (const fn of this.autoModeListeners) fn("explore");
-        },
-        Math.max(0, pass.endAt - ctx.currentTime) * 1000
-      );
-    } else {
-      // Queue the successor a little before this one ends — not now. Scheduling
-      // the whole order up front would decode every motif in the pool and defeat
-      // the point; the lead just has to cover a fetch and decode, and never more
-      // than half the motif or a short one would re-arm instantly and run away.
-      const duration = pass.endAt - pass.startAt;
-      const lead = Math.min(this.opts.motifQueueLeadMs / 1000, duration / 2);
-      const delay = Math.max(0, pass.endAt - lead - ctx.currentTime) * 1000;
-      chain.timer = window.setTimeout(() => {
-        chain.timer = null;
-        void this.playNext(deck, chain, pass.endAt, token);
-      }, delay);
-    }
+    // Queue the successor a little before this one ends — not now. Scheduling
+    // the whole order up front would decode every motif in the pool and defeat
+    // the point; the lead just has to cover a fetch and decode, and never more
+    // than half the motif or a short one would re-arm instantly and run away.
+    const duration = pass.endAt - pass.startAt;
+    const lead = Math.min(this.opts.motifQueueLeadMs / 1000, duration / 2);
+    const delay = Math.max(0, pass.endAt - lead - ctx.currentTime) * 1000;
+    chain.timer = window.setTimeout(() => {
+      chain.timer = null;
+      void this.playNext(deck, chain, pass.endAt, token);
+    }, delay);
 
     // and let the finished one go, so memory stays at two motifs
     this.retirePass(chain, pass);

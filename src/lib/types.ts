@@ -1,11 +1,5 @@
-/**
- * Playback modes. `off` silences the music bus; ambience beds keep their levels.
- *
- * `victory` is transitional rather than a resting state: it plays one swell and
- * hands back to `explore` on its own, which is how a fight ends without the GM
- * having to catch the moment.
- */
-export type Mode = "off" | "explore" | "combat" | "victory";
+/** Playback modes. `off` silences the music bus; ambience beds keep their levels. */
+export type Mode = "off" | "explore" | "combat";
 
 /** The stacks a scene can be playing. `off` has no stack. */
 export type MusicMode = Exclude<Mode, "off">;
@@ -198,11 +192,6 @@ export interface EngineStatus {
   unavailableBeds: string[];
   /** The motif currently sounding, if any. */
   motifId: string | null;
-  /**
-   * The mode the engine is actually in. It moves on its own when a victory
-   * swell finishes and hands back to exploration, so the UI follows this.
-   */
-  mode: Mode;
   /** Decoded audio currently held, in bytes. */
   decodedBytes: number;
 }

@@ -58,13 +58,12 @@ the last few motifs is stepped over rather than played again (`noRepeatWindow`, 
 `10·log10(n)` dB hot. The ambience bus is divided by `√n`, which cancels it exactly — the
 room holds its level whether one bed is up or six.
 
-**Separate pools per mode.** Exploration, combat and victory are separate motif pools, so
-combat can be its own music rather than a busier arrangement of the same cue. Switching
-crossfades from one pool into the other, and only the active pool is loaded.
+**Separate pools per mode.** Exploration and combat are separate motif pools, so combat
+can be its own music rather than a busier arrangement of the same cue. Switching crossfades
+from one pool into the other, and only the active pool is loaded.
 
 Modes: `off` silences music only — ambience beds keep playing, which is usually what you
-want when the table stops for a rules argument. `victory` is transitional: it plays one
-swell and hands back to `explore` by itself.
+want when the table stops for a rules argument.
 
 **One-shots.** `actions.fireOneShot(id)` fires a stinger over the top of everything, on
 its own bus so the ambience trim never ducks it. The library is in the config; the console

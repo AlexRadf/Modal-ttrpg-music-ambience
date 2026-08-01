@@ -1,6 +1,6 @@
 import type { AmbienceConfig, MotifDef, MusicMode, SrcRequest, SrcResolver, ThemeDef, VariantDef } from "../types";
 
-export const MUSIC_MODES: MusicMode[] = ["explore", "combat", "victory"];
+export const MUSIC_MODES: MusicMode[] = ["explore", "combat"];
 export const DEFAULT_INTENSITIES = 4;
 
 /**

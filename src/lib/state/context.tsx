@@ -79,7 +79,6 @@ export interface AmbienceProviderProps {
 }
 
 const COMBAT_ACCENT = "#C4553C";
-const VICTORY_ACCENT = "#B08A38";
 
 function initialFor(config: AmbienceConfig, overrides?: Partial<AmbienceState>): AmbienceState {
   const theme = config.themes[0];
@@ -118,7 +117,6 @@ export function AmbienceProvider(props: AmbienceProviderProps) {
     errors: [],
     unavailableBeds: [],
     motifId: null,
-    mode: "off",
     decodedBytes: 0,
   });
   /** Nothing touches the AudioContext until the first deliberate gesture. */
@@ -155,10 +153,6 @@ export function AmbienceProvider(props: AmbienceProviderProps) {
   useEffect(() => {
     if (armed) engine.setMode(state.mode);
   }, [armed, engine, state.mode]);
-
-  // The engine moves mode by itself only when a victory swell hands back. One
-  // notification, not a mirrored value — mirroring fights the effect above.
-  useEffect(() => engine.onAutoMode((mode) => setState((s) => ({ ...s, mode }))), [engine]);
 
   useEffect(() => {
     engine.setMasterVolume(state.masterVolume);
@@ -241,12 +235,7 @@ export function AmbienceProvider(props: AmbienceProviderProps) {
       variant,
       rows,
       bed,
-      accent:
-        state.mode === "combat"
-          ? COMBAT_ACCENT
-          : state.mode === "victory"
-            ? VICTORY_ACCENT
-            : theme?.accent ?? COMBAT_ACCENT,
+      accent: state.mode === "combat" ? COMBAT_ACCENT : theme?.accent ?? COMBAT_ACCENT,
       engine,
     }),
     [config, state, actions, status, theme, variant, rows, bed, engine]

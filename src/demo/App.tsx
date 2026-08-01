@@ -90,7 +90,6 @@ function HostControls(props: { base: string }) {
         {button("Combat ends", () => actions.setMode("explore"))}
         {button("Turn it down", () => actions.setIntensity(1))}
         {button("Something is wrong", () => actions.setBedLevel("low-breathing", 2))}
-        {button("Victory", () => actions.setMode("victory"))}
       </div>
 
       <div style={{ display: "flex", gap: 8, marginTop: 12, alignItems: "center" }}>
