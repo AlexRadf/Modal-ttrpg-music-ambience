@@ -65,9 +65,11 @@ from one pool into the other, and only the active pool is loaded.
 Modes: `off` silences music only — ambience beds keep playing, which is usually what you
 want when the table stops for a rules argument.
 
-**One-shots.** `actions.fireOneShot(id)` fires a stinger over the top of everything, on
-its own bus so the ambience trim never ducks it. The library is in the config; the console
-does not yet have a UI strip for them.
+**One-shots.** A **Soundboard** tab swaps the whole console over to a grid of pads,
+grouped and filterable, that fire stingers over the top of everything on their own bus so
+the ambience trim never ducks them. A pad flashes on press, and one whose file will not
+load says so rather than failing quietly. `actions.fireOneShot(id)` does the same thing
+from your own UI, and the tab hides itself when a config has no `oneShots`.
 
 ## Pointing it at your files
 

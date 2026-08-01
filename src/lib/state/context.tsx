@@ -116,6 +116,7 @@ export function AmbienceProvider(props: AmbienceProviderProps) {
     loading: false,
     errors: [],
     unavailableBeds: [],
+    unavailableOneShots: [],
     motifId: null,
     decodedBytes: 0,
   });

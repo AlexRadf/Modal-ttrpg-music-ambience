@@ -98,6 +98,7 @@ export class AmbienceEngine {
   private deck: Deck | null = null;
   private beds = new Map<string, Bed>();
   private unavailable = new Set<string>();
+  private unavailableShots = new Set<string>();
   private listeners = new Set<(s: EngineStatus) => void>();
 
   private scene: { themeId: string; variantId: string } | null = null;
@@ -110,6 +111,7 @@ export class AmbienceEngine {
     loading: false,
     errors: [],
     unavailableBeds: [],
+    unavailableOneShots: [],
     motifId: null,
     decodedBytes: 0,
   };
@@ -156,6 +158,14 @@ export class AmbienceEngine {
     if (available) this.unavailable.delete(bedId);
     else this.unavailable.add(bedId);
     this.emit({ unavailableBeds: [...this.unavailable] });
+  }
+
+  private markOneShot(id: string, available: boolean) {
+    const had = this.unavailableShots.has(id);
+    if (available === !had) return;
+    if (available) this.unavailableShots.delete(id);
+    else this.unavailableShots.add(id);
+    this.emit({ unavailableOneShots: [...this.unavailableShots] });
   }
 
   /* ------------------------------------------------------------ lifecycle - */
@@ -636,6 +646,7 @@ export class AmbienceEngine {
     this.ensure();
     const url = oneShotUrl(this.config, oneShotId, this.opts.resolveSrc);
     if (!url) {
+      this.markOneShot(oneShotId, false);
       this.report({ url: oneShotId, message: "no audio uploaded for this one-shot" });
       return;
     }
@@ -644,8 +655,10 @@ export class AmbienceEngine {
     try {
       buffer = await this.loader.load(url);
     } catch {
+      this.markOneShot(oneShotId, false);
       return;
     }
+    this.markOneShot(oneShotId, true);
     if (!this.ctx) return;
 
     const gain = this.ctx.createGain();

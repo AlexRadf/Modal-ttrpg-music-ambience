@@ -190,6 +190,8 @@ export interface EngineStatus {
   errors: LoadFailure[];
   /** Bed ids whose audio could not be loaded, so the UI can mark them. */
   unavailableBeds: string[];
+  /** One-shot ids whose audio could not be loaded. */
+  unavailableOneShots: string[];
   /** The motif currently sounding, if any. */
   motifId: string | null;
   /** Decoded audio currently held, in bytes. */

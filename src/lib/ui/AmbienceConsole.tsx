@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X } from "lucide-react";
+import { Sliders, X, Zap } from "lucide-react";
 import { T, coverBackground, softer } from "../theme";
 import { SHOW_AUTHORING, busTrim } from "../constants";
 import { intensityCount, variantMotifs } from "../audio/sources";
@@ -9,6 +9,8 @@ import { Modal } from "./Modal";
 import { ModeToggle } from "./ModeToggle";
 import { StemStack } from "./StemStack";
 import { ThemeGrid } from "./ThemeGrid";
+import { SoundBoard } from "./SoundBoard";
+import { TabBar } from "./TabBar";
 import { Trigger } from "./Trigger";
 import { VariantSelect } from "./VariantSelect";
 import { useWideLayout } from "./hooks";
@@ -61,6 +63,7 @@ function ConsoleUI(props: AmbienceConsoleProps) {
   const { config, state, actions, status, theme, variant, rows, accent } = useAmbience();
   const wide = useWideLayout();
 
+  const [tab, setTab] = useState<"scene" | "board">("scene");
   const controlled = props.open !== undefined;
   const [internalOpen, setInternalOpen] = useState(props.defaultOpen ?? false);
   const open = controlled ? !!props.open : internalOpen;
@@ -80,6 +83,7 @@ function ConsoleUI(props: AmbienceConsoleProps) {
   if (!theme || !variant) return null;
 
   // the intensity control shows as many steps as the scene has instrument stems
+  const oneShotCount = Object.keys(config.oneShots ?? {}).length;
   const motifs = variantMotifs(theme, variant);
   const maxLayers = motifs.length ? Math.max(...motifs.map((m) => intensityCount(m, variant))) : undefined;
 
@@ -179,6 +183,26 @@ function ConsoleUI(props: AmbienceConsoleProps) {
 
       <div style={{ height: 1, background: T.line }} />
 
+      {oneShotCount > 0 && (
+        <div style={{ padding: "12px 20px 0" }}>
+          <TabBar
+            label="Console section"
+            value={tab}
+            onChange={setTab}
+            accent={accent}
+            tabs={[
+              { id: "scene" as const, label: "Scene", Icon: Sliders },
+              { id: "board" as const, label: "Soundboard", Icon: Zap, badge: oneShotCount },
+            ]}
+          />
+        </div>
+      )}
+
+      {tab === "board" ? (
+        <div className="amb-scroll" style={{ overflowY: "auto" }}>
+          <SoundBoard />
+        </div>
+      ) : (
       <div
         className="amb-scroll"
         style={{ display: "flex", flexDirection: wide ? "row" : "column", overflowY: "auto" }}
@@ -223,6 +247,7 @@ function ConsoleUI(props: AmbienceConsoleProps) {
           <BedList />
         </div>
       </div>
+      )}
     </>
   );
 
