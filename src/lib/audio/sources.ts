@@ -1,7 +1,7 @@
-import { MAX_INTENSITY } from "../constants";
-import type { AmbienceConfig, MusicMode, SrcRequest, SrcResolver, ThemeDef, VariantDef } from "../types";
+import type { AmbienceConfig, MotifDef, MusicMode, SrcRequest, SrcResolver, ThemeDef, VariantDef } from "../types";
 
 export const MUSIC_MODES: MusicMode[] = ["explore", "combat"];
+export const DEFAULT_LAYERS = 4;
 
 /**
  * Where an asset's URL comes from, in one place: the config's own `src` wins,
@@ -16,24 +16,31 @@ export function bedUrl(config: AmbienceConfig, bedId: string, resolve?: SrcResol
   return sourceUrl({ kind: "bed", bedId }, config.beds[bedId]?.src, resolve);
 }
 
-/** Stems per stack, as authored. */
-export function layerCount(variant: VariantDef): number {
-  return variant.music?.explore?.length ?? variant.music?.combat?.length ?? variant.layers ?? MAX_INTENSITY;
+/** Instrument stems in a motif. */
+export function layerCount(motif: MotifDef, variant?: VariantDef): number {
+  return motif.layers ?? variant?.layers ?? DEFAULT_LAYERS;
 }
 
-/** Stem URLs per stack, indexed by layer. `null` means nothing was uploaded. */
-export function musicUrls(
+/** Stem URLs for one motif, indexed by layer. `null` means nothing was uploaded. */
+export function motifUrls(
   theme: ThemeDef,
-  variant: VariantDef,
+  motif: MotifDef,
+  variant?: VariantDef,
   resolve?: SrcResolver
-): Record<MusicMode, Array<string | null>> {
-  const out = {} as Record<MusicMode, Array<string | null>>;
-  for (const mode of MUSIC_MODES) {
-    const explicit = variant.music?.[mode];
-    const count = explicit?.length ?? variant.layers ?? MAX_INTENSITY;
-    out[mode] = Array.from({ length: count }, (_, layer) =>
-      sourceUrl({ kind: "music", themeId: theme.id, variantId: variant.id, mode, layer }, explicit?.[layer], resolve)
-    );
-  }
-  return out;
+): Array<string | null> {
+  return Array.from({ length: layerCount(motif, variant) }, (_, layer) =>
+    sourceUrl(
+      { kind: "music", themeId: theme.id, motifId: motif.id, mode: motif.mode, layer },
+      motif.stems?.[layer],
+      resolve
+    )
+  );
+}
+
+/** The motifs a variant draws on, in pool order. */
+export function variantMotifs(theme: ThemeDef, variant: VariantDef, mode?: MusicMode): MotifDef[] {
+  const chosen = variant.motifs;
+  return theme.motifs.filter(
+    (m) => (!mode || m.mode === mode) && (!chosen || chosen.includes(m.id))
+  );
 }

@@ -2,6 +2,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { T, coverBackground, softer } from "../theme";
 import { SHOW_AUTHORING, busTrim } from "../constants";
+import { layerCount, variantMotifs } from "../audio/sources";
 import { AmbienceProvider, useAmbience, useOptionalAmbience, type AmbienceProviderProps } from "../state/context";
 import { BedList } from "./BedList";
 import { Modal } from "./Modal";
@@ -77,6 +78,10 @@ function ConsoleUI(props: AmbienceConsoleProps) {
   ).length;
 
   if (!theme || !variant) return null;
+
+  // the intensity control shows as many steps as the scene has instrument stems
+  const motifs = variantMotifs(theme, variant);
+  const maxLayers = motifs.length ? Math.max(...motifs.map((m) => layerCount(m, variant))) : undefined;
 
   const body = (
     <>
@@ -200,7 +205,7 @@ function ConsoleUI(props: AmbienceConsoleProps) {
             onChange={actions.setIntensity}
             accent={accent}
             dimmed={state.mode === "off"}
-            max={variant.layers ?? variant.music?.explore?.length}
+            max={maxLayers}
           />
           <ModeToggle mode={state.mode} onChange={actions.setMode} accent={accent} />
         </div>

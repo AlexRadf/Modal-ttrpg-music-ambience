@@ -23,20 +23,43 @@ export interface BedDef {
   trim?: number;
 }
 
+/**
+ * A musical section — one passage of a scene's score, half a minute or so long.
+ *
+ * A scene owns a pool of these and the console chains them, shuffled, so a few
+ * minutes pass before the order comes round again. Motifs are the unit because
+ * only the playing motif and the one queued behind it are ever decoded: memory
+ * is bounded by the motif length, not by how long the music runs.
+ *
+ * Each motif carries its instrument layers as separate stems. They start on the
+ * same sample and are gated by gain, so intensity adds and removes instruments
+ * inside a passage without restarting it.
+ */
+export interface MotifDef {
+  id: string;
+  /** Which stack this belongs to; a scene's pool holds both. */
+  mode: MusicMode;
+  /** Optional label for authoring tools. */
+  name?: string;
+  /** Instrument stems, innermost first. Defaults to the variant's `layers`. */
+  layers?: number;
+  /** Explicit stem URLs by layer. Omit to have `resolveSrc` derive them. */
+  stems?: string[];
+  /** Length in bars. Authoring metadata; playback uses the decoded length. */
+  bars?: number;
+}
+
 /** A tonal/emotional take on a theme — same place, different night. */
 export interface VariantDef {
   id: string;
   name: string;
   /**
-   * Stem URLs, innermost layer first. Both stacks must have the same number of
-   * stems, cut to the same musical length, and be bounced from one performance:
-   * they all start on the same sample and are gated by gain alone.
-   *
-   * Omit to have `resolveSrc` derive the URLs, in which case `layers` says how
-   * many stems were uploaded.
+   * Motif ids this variant draws on, from its theme's pool. Omit to use the
+   * whole pool. Overlapping selections are how two variants of one scene share
+   * material while still sounding like different nights.
    */
-  music?: Partial<Record<MusicMode, string[]>>;
-  /** Stems per stack when URLs come from `resolveSrc`. Defaults to 5. */
+  motifs?: string[];
+  /** Stems per motif when a motif does not say. Defaults to 4. */
   layers?: number;
 }
 
@@ -52,8 +75,10 @@ export interface ThemeDef {
   art?: string;
   bpm?: number;
   key?: string;
-  /** Bars per loop. Authoring metadata: with `bpm` it fixes the stem length. */
+  /** Bars per motif. Authoring metadata: with `bpm` it fixes the stem length. */
   bars?: number;
+  /** The scene's motifs, both stacks. Variants select from these. */
+  motifs: MotifDef[];
   variants: VariantDef[];
   /** Bed ids shown by default for this theme, in display order. */
   ambience: string[];
@@ -65,10 +90,14 @@ export interface AmbienceConfig {
   themes: ThemeDef[];
 }
 
-/** What the engine needs a URL for, so a host can name uploads however it likes. */
+/**
+ * What the engine needs a URL for, so a host can name uploads however it likes.
+ * Motifs belong to a scene rather than to a variant, so two variants that share
+ * a motif share the file.
+ */
 export type SrcRequest =
   | { kind: "bed"; bedId: string }
-  | { kind: "music"; themeId: string; variantId: string; mode: MusicMode; layer: number };
+  | { kind: "music"; themeId: string; motifId: string; mode: MusicMode; layer: number };
 
 /**
  * Maps a request onto the URL the file was uploaded to. Returning `null` means
@@ -92,6 +121,16 @@ export interface EngineOptions {
   resolveSrc?: SrcResolver;
   /** Passed to every `fetch` — for `credentials`, auth headers, or a CORS mode. */
   fetchInit?: RequestInit;
+  /**
+   * Ceiling on decoded audio held in memory, in bytes. Buffers that are not
+   * currently sounding are dropped, least recently used first, to stay under
+   * it. Decoded audio is uncompressed — a 45 s stereo stem at 44.1 kHz is about
+   * 16 MB whatever the file size — so this, not the download, is what bounds
+   * the console's footprint. Default 192 MB.
+   */
+  maxDecodedBytes?: number;
+  /** How long a motif may overrun while its successor is still decoding. */
+  motifQueueLeadMs?: number;
 }
 
 /** An asset that could not be fetched or decoded. */
@@ -108,4 +147,8 @@ export interface EngineStatus {
   errors: LoadFailure[];
   /** Bed ids whose audio could not be loaded, so the UI can mark them. */
   unavailableBeds: string[];
+  /** The motif currently sounding, if any. */
+  motifId: string | null;
+  /** Decoded audio currently held, in bytes. */
+  decodedBytes: number;
 }

@@ -36,19 +36,25 @@ no Tailwind. The one thing it needs is where your uploads live.
 
 Three ideas do the work.
 
-**Vertical layering.** Every stem of the current scene starts on the same sample and
-keeps running for as long as the scene does. Intensity does not start or stop anything;
-it moves gain on layers that are already playing. Raising it sounds like an arrangement
-opening up rather than a second track fading in, because it is the same performance
-throughout.
+**Motifs, chained.** A scene's score is a pool of short passages, shuffled and chained end
+to end on the audio clock so the join is sample-exact. The music runs for minutes without
+its order coming round, and — because only the sounding motif and its successor have to be
+resident — memory stays flat however long the session lasts. A five-minute stem would be
+about 106 MB decoded; this is what avoids that.
 
-**Two stacks, one grid.** Exploration and combat are separate stem stacks of the same
-piece, started together and crossfaded between. Combat lands in time because it was
-already playing, silently, in the same bar.
+**Vertical layering.** Inside a motif, the instrument stems all start on the same sample
+and are gated by gain: strings, then piano on top, then bass, then a counter-melody.
+Intensity moves those gains, so it adds an instrument to a passage already in progress
+rather than restarting anything. The gains belong to the chain rather than the motif, so
+the setting carries across the join untouched.
 
 **Power-summed ambience.** Uncorrelated beds sum in power, so `n` beds at equal level run
 `10·log10(n)` dB hot. The ambience bus is divided by `√n`, which cancels it exactly — the
 room holds its level whether one bed is up or six.
+
+**Two pools, not two mixes.** Exploration and combat are separate motif pools, so combat
+can be its own music rather than a busier arrangement of the same cue. Switching crossfades
+from one pool into the other, and only the active pool is loaded.
 
 Modes: `off` silences music only. Ambience beds keep playing, which is usually what you
 want when the table stops for a rules argument.
@@ -64,8 +70,11 @@ the conventional arrangement:
 
 ```
 /audio/ambience/{bedId}.ogg
-/audio/music/{themeId}/{variantId}/{explore|combat}-{1..5}.ogg
+/audio/music/{themeId}/{motifId}/layer-{1..n}.ogg
 ```
+
+Motifs sit under the scene, not under a variant, because variants are selections from the
+scene's pool — two variants that share a motif share the file.
 
 Any other naming scheme is a function — ids in, URLs out. Return `null` for anything not
 uploaded and the engine skips it silently instead of reporting it missing:
@@ -74,7 +83,7 @@ uploaded and the engine skips it silently instead of reporting it missing:
 resolveSrc: (req) =>
   req.kind === "bed"
     ? uploads.beds[req.bedId] ?? null
-    : uploads.stems[`${req.themeId}/${req.variantId}/${req.mode}/${req.layer}`] ?? null;
+    : uploads.stems[`${req.themeId}/${req.motifId}/${req.layer}`] ?? null;
 ```
 
 Per-asset URLs in the config win over the resolver, which is the escape hatch for one
@@ -93,17 +102,18 @@ console opens, so the first press of play does not wait on ten downloads.
 
 ## Authoring the stems
 
-All layers of a stack must be the same musical length and come from the same performance:
-bounce them from one session with layers soloed, do not record them separately. They start
-on the same sample and are gated by gain alone, so anything else drifts.
+A motif is one passage, recorded once per instrument layer. Layer 1 is heard alone at
+intensity 1; each further layer is added on top, and every file contains **only its own
+instruments** — the console sums them, so do not print running mixes.
 
-- Layer 1 is the floor, heard alone at intensity 1. Layer 5 is the top, heard only at 5.
-- The combat stack must match the exploration stack's length exactly, or switching mid-bar
-  puts the two out of phase.
-- Fewer than five layers is fine — set `layers: 3` on the variant and the intensity control
-  shows three steps.
-- Loop points must be clean in the file itself; playback uses `loop = true`, which is
-  sample-exact and does no crossfading.
+- Bounce all of a motif's layers from one session with the others muted. They start on the
+  same sample and are gated by gain, so anything else drifts.
+- **Every stem of a motif must be exactly the same length**, with no silence at either end:
+  motifs are chained by scheduling the next to start the sample after the last ends.
+- Ring-outs that cross a join should be printed into the head of the next motif.
+- Layer count is per motif (or per variant): `layers: 3` gives a three-step intensity
+  control.
+- The full spec, including exact motif lengths per scene, is in [ASSETS.md](ASSETS.md).
 
 ## When a file is missing
 
@@ -111,8 +121,9 @@ There is no fallback, so failures are made visible rather than papered over:
 
 - A bed whose file will not load is marked **unavailable** in the list, greyed with its
   level dots unlit, and left out of the bus trim. Clicking it retries.
-- A music stem that fails is skipped; the rest of the stack still plays. If every stem of
-  a scene fails, whatever was already playing keeps playing rather than dropping to silence.
+- A music stem that fails is skipped; the rest of the motif still plays. A motif with no
+  loadable stems is skipped and the chain moves to the next one. If a whole scene fails,
+  whatever was already playing keeps playing rather than dropping to silence.
 - Every failure lands in `status.errors` as `{ url, message }`, so you can surface them in
   your own UI. The demo prints them.
 
@@ -150,10 +161,14 @@ the state and stay silent until someone clicks. Drive it from a click, not an ef
 ## Content
 
 The bundled pack is for **ALIEN RPG**: six scenes — hypersleep bay, derelict, colony
-habitat, hive, storm surface, med lab — with two variants each and a shared library of 53
-sci-fi horror beds. Scene names are generic rather than lifted from any published
-scenario, and they are display strings, so rename them freely; the ids are what filenames
-are built from.
+habitat, hive, storm surface, med lab — each with a pool of twelve motifs (eight
+exploration, four combat) and a shared library of 53 sci-fi horror beds.
+
+Variants are selections from a scene's pool rather than separate recordings: "Cold and
+dead" and "Something is awake" overlap in the middle of the derelict's pool and diverge at
+the edges, which is how one scene gets two moods without being scored twice. Scene names
+are generic rather than lifted from any published scenario, and they are display strings,
+so rename them freely; the ids are what filenames are built from.
 
 It is plain data. Replace it wholesale, or extend it:
 
@@ -191,7 +206,7 @@ const outstanding = missingAssets(DEFAULT_CONFIG, await listUploadedUrls());
 | Prop | Default | |
 |---|---|---|
 | `config` | bundled pack | Themes and beds. |
-| `options` | — | `EngineOptions`: `resolveSrc`, `fetchInit`, fade times, `masterVolume`. |
+| `options` | — | `EngineOptions`: `resolveSrc`, `fetchInit`, `maxDecodedBytes`, fade times, `masterVolume`. |
 | `open` / `defaultOpen` / `onOpenChange` | uncontrolled | Control the modal from outside. |
 | `trigger` | `true` | Render the floating button. |
 | `inline` | `false` | Dock the console in the page instead of over an overlay. |
@@ -202,9 +217,8 @@ const outstanding = missingAssets(DEFAULT_CONFIG, await listUploadedUrls());
 ## Signal flow
 
 ```
-master ─┬─ music ──── deck ─┬─ explore ── layer 1..5
-        │                   └─ combat  ── layer 1..5
-        └─ ambience ─ bed × n        (bus × 1/√n)
+master ─┬─ music ── deck ── chain ── layer 1..n ← motif stems
+        └─ ambience ── bed × n              (bus × 1/√n)
 ```
 
 `src/lib/audio/engine.ts` owns all of it and has no React in it, so it can be driven from
@@ -230,6 +244,9 @@ src/demo/                            a host app to try it in
 
 - Bed levels are −18 / −12 / −6 dB (`LEVEL_GAIN`); music stems play at unity. The balance
   between the two buses is yours to set at the source when you master the files.
+- `maxDecodedBytes` (default 320 MB) caps decoded audio. Two motifs' worth is the floor;
+  everything above that is cache, evicted least recently used. `status.decodedBytes` and
+  `status.motifId` report what is actually held and playing.
 - Each URL is fetched and decoded once and shared, so a bed used by six themes costs one
   download. A failed URL is dropped from the cache so the next attempt retries.
 - The demo takes `?assets=` and `?ext=` on the query string, which is the quickest way to

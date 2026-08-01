@@ -1,4 +1,4 @@
-import { MUSIC_MODES, bedUrl, layerCount, musicUrls } from "./audio/sources";
+import { layerCount, motifUrls, bedUrl, variantMotifs } from "./audio/sources";
 import type { AmbienceConfig, MusicMode, SrcResolver } from "./types";
 
 /** One file the console will ask for. */
@@ -10,44 +10,50 @@ export interface AssetEntry {
   label: string;
   bedId?: string;
   themeId?: string;
-  variantId?: string;
+  motifId?: string;
   mode?: MusicMode;
   /** 0-based; layer 0 is heard alone at intensity 1. */
   layer?: number;
-  /** For beds: the themes that list this bed by default. */
+  /** For music: which variants of the scene draw on this motif. */
   usedBy?: string[];
 }
 
 export interface ManifestOptions {
   resolveSrc?: SrcResolver;
-  /** Include every bed in the library, not just the ones themes list. Default true. */
+  /** Include every bed in the library, not just the ones scenes list. Default true. */
   includeUnusedBeds?: boolean;
 }
 
 /**
  * Every file a config needs, derived from the config itself so it cannot drift
- * from what the engine actually requests. Useful for producing an upload
- * checklist, and for an admin screen that diffs required against uploaded.
+ * from what the engine actually requests. Motifs shared between variants appear
+ * once, because they are one file.
  */
 export function assetManifest(config: AmbienceConfig, opts: ManifestOptions = {}): AssetEntry[] {
   const entries: AssetEntry[] = [];
 
   for (const theme of config.themes) {
-    for (const variant of theme.variants) {
-      const urls = musicUrls(theme, variant, opts.resolveSrc);
-      for (const mode of MUSIC_MODES) {
-        urls[mode].forEach((url, layer) => {
-          entries.push({
-            kind: "music",
-            url,
-            label: `${theme.name} · ${variant.name} · ${mode} · layer ${layer + 1}`,
-            themeId: theme.id,
-            variantId: variant.id,
-            mode,
-            layer,
-          });
+    for (const motif of theme.motifs) {
+      const variants = theme.variants.filter((v) => variantMotifs(theme, v).some((m) => m.id === motif.id));
+      // a variant may raise the layer count, so take the widest that uses it
+      const widest = variants.reduce(
+        (n, v) => Math.max(n, layerCount(motif, v)),
+        layerCount(motif)
+      );
+      const urls = motifUrls(theme, { ...motif, layers: widest }, undefined, opts.resolveSrc);
+
+      urls.forEach((url, layer) => {
+        entries.push({
+          kind: "music",
+          url,
+          label: `${theme.name} · ${motif.id} · layer ${layer + 1}`,
+          themeId: theme.id,
+          motifId: motif.id,
+          mode: motif.mode,
+          layer,
+          usedBy: variants.map((v) => v.name),
         });
-      }
+      });
     }
   }
 
@@ -79,8 +85,20 @@ export interface ManifestSummary {
   total: number;
   /** Entries with no URL mapped — nothing will be fetched for these. */
   unmapped: number;
-  /** Per theme: how many music files it needs. */
-  byTheme: Array<{ themeId: string; name: string; variants: number; layers: number; music: number }>;
+  byTheme: Array<{
+    themeId: string;
+    name: string;
+    motifs: number;
+    layers: number;
+    music: number;
+    /** Seconds of unique music, if bpm and bars are set. */
+    seconds: number;
+  }>;
+}
+
+/** Seconds one motif runs for, from the scene's tempo and bar count. */
+export function motifSeconds(bpm = 90, bars = 12): number {
+  return (60 / bpm) * 4 * bars;
 }
 
 export function manifestSummary(config: AmbienceConfig, opts: ManifestOptions = {}): ManifestSummary {
@@ -93,11 +111,23 @@ export function manifestSummary(config: AmbienceConfig, opts: ManifestOptions = 
     byTheme: config.themes.map((theme) => ({
       themeId: theme.id,
       name: theme.name,
-      variants: theme.variants.length,
-      layers: Math.max(...theme.variants.map(layerCount)),
-      music: theme.variants.reduce((n, v) => n + layerCount(v) * MUSIC_MODES.length, 0),
+      motifs: theme.motifs.length,
+      layers: Math.max(...theme.motifs.map((m) => layerCount(m, theme.variants[0]))),
+      music: entries.filter((e) => e.kind === "music" && e.themeId === theme.id).length,
+      seconds: theme.motifs.length * motifSeconds(theme.bpm, theme.bars),
     })),
   };
+}
+
+/**
+ * How long a variant's stack runs before its order comes round, in seconds.
+ * This is the number to check against "it should not feel like a loop".
+ */
+export function poolSeconds(config: AmbienceConfig, themeId: string, variantId: string, mode: MusicMode): number {
+  const theme = config.themes.find((t) => t.id === themeId);
+  const variant = theme?.variants.find((v) => v.id === variantId);
+  if (!theme || !variant) return 0;
+  return variantMotifs(theme, variant, mode).length * motifSeconds(theme.bpm, theme.bars);
 }
 
 /**

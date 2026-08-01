@@ -114,6 +114,8 @@ export function AmbienceProvider(props: AmbienceProviderProps) {
     loading: false,
     errors: [],
     unavailableBeds: [],
+    motifId: null,
+    decodedBytes: 0,
   });
   /** Nothing touches the AudioContext until the first deliberate gesture. */
   const [armed, setArmed] = useState(false);

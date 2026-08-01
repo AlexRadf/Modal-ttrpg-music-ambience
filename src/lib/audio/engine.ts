@@ -7,19 +7,49 @@ import type {
   Intensity,
   LoadFailure,
   Mode,
+  MotifDef,
   MusicMode,
+  ThemeDef,
+  VariantDef,
 } from "../types";
 import { AssetLoader } from "./loader";
-import { MUSIC_MODES, bedUrl, musicUrls } from "./sources";
-import { clamp, ramp } from "./util";
+import { bedUrl, layerCount, motifUrls, variantMotifs } from "./sources";
+import { clamp, ramp, shuffle } from "./util";
 
-/** One theme+variant, loaded and playing. Layers that failed to load are null. */
+/** One motif, scheduled or sounding. */
+interface Pass {
+  motif: MotifDef;
+  startAt: number;
+  endAt: number;
+  sources: AudioBufferSourceNode[];
+  urls: string[];
+  released: boolean;
+}
+
+/**
+ * One pool of motifs, playing. A deck normally has one; during a mode change it
+ * briefly has two while the outgoing stack fades.
+ */
+interface Chain {
+  mode: MusicMode;
+  gain: GainNode;
+  /** Persist across motifs, so intensity survives the join. */
+  layers: GainNode[];
+  order: MotifDef[];
+  cursor: number;
+  passes: Pass[];
+  /** Fires shortly before the sounding motif ends, to queue its successor. */
+  timer: number | null;
+  stopped: boolean;
+}
+
+/** One theme+variant. */
 interface Deck {
   key: string;
+  theme: ThemeDef;
+  variant: VariantDef;
   out: GainNode;
-  modes: Record<MusicMode, GainNode>;
-  layers: Record<MusicMode, Array<GainNode | null>>;
-  sources: AudioBufferSourceNode[];
+  chains: Chain[];
   stopped: boolean;
 }
 
@@ -28,21 +58,26 @@ interface Bed {
   source: AudioBufferSourceNode | null;
   level: BedLevel;
   stopping: boolean;
+  url: string | null;
 }
 
 /**
  * The audio side of the console, with no React in it.
  *
- * Signal flow:
- *
- *   master ─┬─ music ── deck ─┬─ explore ── layer 1..n
- *           │                 └─ combat  ── layer 1..n
+ *   master ─┬─ music ── deck ── chain ── layer 1..n ← motif stems
  *           └─ ambience ── bed × n
  *
- * Every stem of a deck starts on the same sample and runs for the life of the
- * deck; intensity and mode only move gain. That is what keeps the layers phase
- * locked, so raising the intensity sounds like an arrangement opening up rather
- * than a second track being started.
+ * A scene's score is a pool of motifs, shuffled and chained end to end on the
+ * audio clock, so the join is sample-exact and the music runs for minutes
+ * without repeating its order. Only the sounding motif and the one queued
+ * behind it are ever decoded, which is what keeps memory flat however long the
+ * session runs.
+ *
+ * Inside a motif, the instrument stems all start on the same sample and are
+ * gated by gain. Intensity moves those gains, so raising it adds an instrument
+ * to a passage already in progress rather than restarting anything. The layer
+ * gains belong to the chain, not to the motif, so the setting carries across
+ * the join untouched.
  */
 export class AmbienceEngine {
   private ctx: AudioContext | null = null;
@@ -60,7 +95,15 @@ export class AmbienceEngine {
   private mode: Mode = "off";
   private intensity: Intensity = 3;
   private generation = 0;
-  private status: EngineStatus = { running: false, loading: false, errors: [], unavailableBeds: [] };
+  private switchSeq = 0;
+  private status: EngineStatus = {
+    running: false,
+    loading: false,
+    errors: [],
+    unavailableBeds: [],
+    motifId: null,
+    decodedBytes: 0,
+  };
 
   private opts: Required<Omit<EngineOptions, "resolveSrc" | "fetchInit">> &
     Pick<EngineOptions, "resolveSrc" | "fetchInit">;
@@ -72,6 +115,8 @@ export class AmbienceEngine {
       modeFadeMs: options.modeFadeMs ?? DEFAULTS.modeFadeMs,
       bedFadeMs: options.bedFadeMs ?? DEFAULTS.bedFadeMs,
       masterVolume: options.masterVolume ?? DEFAULTS.masterVolume,
+      maxDecodedBytes: options.maxDecodedBytes ?? DEFAULTS.maxDecodedBytes,
+      motifQueueLeadMs: options.motifQueueLeadMs ?? DEFAULTS.motifQueueLeadMs,
       resolveSrc: options.resolveSrc,
       fetchInit: options.fetchInit,
     };
@@ -129,9 +174,11 @@ export class AmbienceEngine {
     this.ambienceBus.connect(this.master);
 
     this.loader = new AssetLoader(ctx, {
+      maxDecodedBytes: this.opts.maxDecodedBytes,
       fetchInit: this.opts.fetchInit,
       onBusy: (busy) => this.emit({ loading: busy }),
       onError: (failure) => this.report(failure),
+      onFootprint: (decodedBytes) => this.emit({ decodedBytes }),
     });
 
     return ctx;
@@ -166,25 +213,30 @@ export class AmbienceEngine {
     if (this.ctx) ramp(this.master.gain, this.opts.masterVolume, 0.08, this.ctx);
   }
 
-  /* ------------------------------------------------------------- sources -- */
+  /* ------------------------------------------------------------- loading -- */
+
+  private find(themeId: string, variantId?: string) {
+    const theme = this.config.themes.find((t) => t.id === themeId);
+    const variant = theme?.variants.find((v) => v.id === variantId) ?? theme?.variants[0];
+    return theme && variant ? { theme, variant } : null;
+  }
 
   /**
-   * Downloads and decodes a scene's assets without disturbing playback. Worth
-   * calling when the console opens, so the first press of play is instant.
+   * Downloads and decodes the first motif of a scene plus its beds, without
+   * disturbing playback. Worth calling when the console opens, so the first
+   * press of play is instant.
    */
   async preload(themeId: string, variantId?: string): Promise<void> {
-    const theme = this.config.themes.find((t) => t.id === themeId);
-    if (!theme) return;
-    const variant = theme.variants.find((v) => v.id === variantId) ?? theme.variants[0];
-    if (!variant) return;
-
+    const found = this.find(themeId, variantId);
+    if (!found) return;
     this.ensure();
-    const urls = musicUrls(theme, variant, this.opts.resolveSrc);
-    const wanted = MUSIC_MODES.flatMap((mode) => urls[mode])
-      .concat(theme.ambience.map((bedId) => bedUrl(this.config, bedId, this.opts.resolveSrc)))
-      .filter((url): url is string => !!url);
 
-    await this.loader.prefetch(wanted);
+    const { theme, variant } = found;
+    const first = variantMotifs(theme, variant, "explore")[0];
+    const stems = first ? motifUrls(theme, first, variant, this.opts.resolveSrc) : [];
+    const beds = theme.ambience.map((bedId) => bedUrl(this.config, bedId, this.opts.resolveSrc));
+
+    await this.loader.prefetch(stems.concat(beds).filter((url): url is string => !!url));
   }
 
   /* ---------------------------------------------------------------- music - */
@@ -193,7 +245,6 @@ export class AmbienceEngine {
   async setScene(themeId: string, variantId: string): Promise<void> {
     this.scene = { themeId, variantId };
     if (this.mode === "off") {
-      // nothing audible to build yet; the deck is created when a mode is chosen
       if (this.deck) this.retireDeck();
       return;
     }
@@ -202,7 +253,7 @@ export class AmbienceEngine {
 
   setIntensity(n: Intensity) {
     this.intensity = clamp(n, 1, MAX_INTENSITY) as Intensity;
-    if (this.deck) this.applyIntensity(this.deck, this.opts.layerFadeMs / 1000);
+    if (this.deck) for (const chain of this.deck.chains) this.applyIntensity(chain, this.opts.layerFadeMs / 1000);
   }
 
   setMode(mode: Mode) {
@@ -221,131 +272,249 @@ export class AmbienceEngine {
       if (this.scene) void this.loadDeck(this.scene.themeId, this.scene.variantId);
       return;
     }
-    this.applyMode(this.deck, this.opts.modeFadeMs / 1000);
+    void this.switchChain(this.deck, mode);
   }
 
   private async loadDeck(themeId: string, variantId: string): Promise<void> {
     const ctx = this.ensure();
-    const theme = this.config.themes.find((t) => t.id === themeId);
-    const variant = theme?.variants.find((v) => v.id === variantId) || theme?.variants[0];
-    if (!theme || !variant) return;
+    const found = this.find(themeId, variantId);
+    if (!found) return;
 
-    const key = themeId + "/" + variant.id;
+    const { theme, variant } = found;
+    const key = theme.id + "/" + variant.id;
     if (this.deck && this.deck.key === key) return;
 
+    const mode: MusicMode = this.mode === "combat" ? "combat" : "explore";
     const token = ++this.generation;
-    const urls = musicUrls(theme, variant, this.opts.resolveSrc);
-    const buffers = {} as Record<MusicMode, Array<AudioBuffer | null>>;
 
-    // one bad stem should not cost the whole scene, so failures are tolerated
-    const settled = await Promise.all(
-      MUSIC_MODES.map((mode) =>
-        Promise.allSettled(urls[mode].map((url) => (url ? this.loader.load(url) : Promise.resolve(null))))
-      )
-    );
-    if (token !== this.generation || !this.ctx) return;
+    const out = ctx.createGain();
+    out.gain.value = 0;
+    out.connect(this.musicBus);
+    const deck: Deck = { key, theme, variant, out, chains: [], stopped: false };
 
-    let loaded = 0;
-    MUSIC_MODES.forEach((mode, i) => {
-      buffers[mode] = settled[i].map((result) => {
-        const buffer = result.status === "fulfilled" ? result.value : null;
-        if (buffer) loaded++;
-        return buffer;
-      });
-    });
-
-    if (loaded === 0) {
-      // nothing to play: keep whatever is already playing rather than going silent
-      const declared = MUSIC_MODES.some((mode) => urls[mode].some(Boolean));
-      this.report({ url: key, message: declared ? "no stems could be loaded" : "no music uploaded for this variant" });
+    const chain = await this.startChain(deck, mode, token);
+    if (token !== this.generation || !this.ctx) {
+      if (chain) this.stopChain(chain, 0);
+      out.disconnect();
+      return;
+    }
+    if (!chain) {
+      out.disconnect();
       return;
     }
 
-    const deck = this.buildDeck(ctx, key, buffers);
+    // the deck's own gain does the crossfade; the chain sits open behind it
+    chain.gain.gain.value = 1;
+
     const fade = this.opts.crossfadeMs / 1000;
-
-    this.applyIntensity(deck, 0);
-    this.applyMode(deck, 0);
-    ramp(deck.out.gain, 1, fade, ctx);
-
+    ramp(out.gain, 1, fade, ctx);
     if (this.deck) this.stopDeck(this.deck, fade);
     this.deck = deck;
   }
 
-  private buildDeck(ctx: AudioContext, key: string, buffers: Record<MusicMode, Array<AudioBuffer | null>>): Deck {
-    const out = ctx.createGain();
-    out.gain.value = 0;
-    out.connect(this.musicBus);
-
-    const modes = {} as Record<MusicMode, GainNode>;
-    const layers = {} as Record<MusicMode, Array<GainNode | null>>;
-    const sources: AudioBufferSourceNode[] = [];
-
-    // one start time for every stem in the deck — this is the phase lock
-    const startAt = ctx.currentTime + 0.12;
-
-    for (const mode of MUSIC_MODES) {
-      const modeGain = ctx.createGain();
-      modeGain.gain.value = 0;
-      modeGain.connect(out);
-      modes[mode] = modeGain;
-
-      layers[mode] = (buffers[mode] ?? []).map((buffer) => {
-        if (!buffer) return null;
-        const gain = ctx.createGain();
-        gain.gain.value = 0;
-        gain.connect(modeGain);
-
-        const source = ctx.createBufferSource();
-        source.buffer = buffer;
-        source.loop = true;
-        source.connect(gain);
-        source.start(startAt);
-        sources.push(source);
-
-        return gain;
-      });
+  /** Builds a chain for a mode and gets its first motif sounding. */
+  private async startChain(deck: Deck, mode: MusicMode, token: number): Promise<Chain | null> {
+    const ctx = this.ctx!;
+    const pool = variantMotifs(deck.theme, deck.variant, mode);
+    if (pool.length === 0) {
+      this.report({ url: deck.key + "/" + mode, message: "no motifs for this stack" });
+      return null;
     }
 
-    return { key, out, modes, layers, sources, stopped: false };
+    const layers = Math.max(...pool.map((m) => layerCount(m, deck.variant)));
+    const gain = ctx.createGain();
+    gain.gain.value = 0;
+    gain.connect(deck.out);
+
+    const chain: Chain = {
+      mode,
+      gain,
+      layers: Array.from({ length: layers }, () => {
+        const g = ctx.createGain();
+        g.gain.value = 0;
+        g.connect(gain);
+        return g;
+      }),
+      order: shuffle(pool),
+      cursor: 0,
+      passes: [],
+      timer: null,
+      stopped: false,
+    };
+
+    this.applyIntensity(chain, 0);
+    const started = await this.playNext(deck, chain, ctx.currentTime + 0.12, token);
+    if (!started) {
+      gain.disconnect();
+      return null;
+    }
+
+    deck.chains.push(chain);
+    return chain;
   }
 
-  private applyIntensity(deck: Deck, fade: number) {
+  /** Fades from the current stack to the other one. */
+  private async switchChain(deck: Deck, mode: MusicMode): Promise<void> {
+    const current = deck.chains[deck.chains.length - 1];
+    if (current && current.mode === mode) return;
+
+    const token = this.generation;
+    const seq = ++this.switchSeq;
+    const fade = this.opts.modeFadeMs / 1000;
+
+    const chain = await this.startChain(deck, mode, token);
+    // a second switch, or a scene change, landed while this stack was loading
+    if (!chain || seq !== this.switchSeq || token !== this.generation || !this.ctx) {
+      if (chain) {
+        this.stopChain(chain, 0);
+        deck.chains = deck.chains.filter((c) => c !== chain);
+      }
+      return;
+    }
+
+    ramp(chain.gain.gain, 1, fade, this.ctx);
+    for (const other of deck.chains) if (other !== chain) this.stopChain(other, fade);
+    deck.chains = [chain];
+  }
+
+  /**
+   * Loads the next motif in the order and schedules it to start exactly when
+   * `at` arrives. Because the start time is on the audio clock and the buffers
+   * are already decoded, the join between motifs is sample-exact.
+   */
+  private async playNext(deck: Deck, chain: Chain, at: number, token: number): Promise<boolean> {
+    const ctx = this.ctx;
+    if (!ctx || chain.stopped || token !== this.generation) return false;
+
+    if (chain.cursor >= chain.order.length) {
+      // a fresh shuffle rather than the same rotation twice
+      chain.order = shuffle(chain.order, chain.order[chain.order.length - 1]?.id);
+      chain.cursor = 0;
+    }
+    const motif = chain.order[chain.cursor++];
+    const urls = motifUrls(deck.theme, motif, deck.variant, this.opts.resolveSrc);
+
+    const settled = await Promise.all(
+      urls.map((url) => (url ? this.loader.load(url).catch(() => null) : Promise.resolve(null)))
+    );
+    if (!this.ctx || chain.stopped || token !== this.generation) return false;
+
+    const buffers = settled.filter((b): b is AudioBuffer => !!b);
+    if (buffers.length === 0) {
+      this.report({ url: motif.id, message: "no stems could be loaded" });
+      // skip a motif that cannot play rather than stalling the chain
+      return chain.order.length > 1 ? this.playNext(deck, chain, at, token) : false;
+    }
+
+    // decoding may have overrun the join; start now and take the small gap
+    const startAt = Math.max(at, ctx.currentTime + 0.02);
+    const duration = Math.max(...buffers.map((b) => b.duration));
+    const pass: Pass = { motif, startAt, endAt: startAt + duration, sources: [], urls: [], released: false };
+
+    settled.forEach((buffer, layer) => {
+      if (!buffer) return;
+      const target = chain.layers[Math.min(layer, chain.layers.length - 1)];
+      const source = ctx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(target);
+      source.start(startAt);
+      pass.sources.push(source);
+
+      const url = urls[layer];
+      if (url) {
+        this.loader.pin(url);
+        pass.urls.push(url);
+      }
+    });
+
+    chain.passes.push(pass);
+    if (!chain.stopped) this.emit({ motifId: motif.id });
+
+    // Queue the successor a little before this one ends — not now. Scheduling
+    // the whole order up front would decode every motif in the pool and defeat
+    // the point; the lead just has to cover a fetch and decode.
+    // never lead by more than half the motif, or a motif shorter than the lead
+    // would queue its successor instantly and run away down the pool
+    const lead = Math.min(this.opts.motifQueueLeadMs / 1000, duration / 2);
+    const delay = Math.max(0, pass.endAt - lead - ctx.currentTime) * 1000;
+    if (chain.timer !== null) window.clearTimeout(chain.timer);
+    chain.timer = window.setTimeout(() => {
+      chain.timer = null;
+      void this.playNext(deck, chain, pass.endAt, token);
+    }, delay);
+
+    // and let the finished one go, so memory stays at two motifs
+    this.retirePass(chain, pass);
+
+    return true;
+  }
+
+  private retirePass(chain: Chain, pass: Pass) {
+    const ctx = this.ctx!;
+    const after = (pass.endAt - ctx.currentTime + 0.5) * 1000;
+    window.setTimeout(() => {
+      if (pass.released) return;
+      pass.released = true;
+      for (const source of pass.sources) {
+        try {
+          source.disconnect();
+        } catch {
+          /* already gone */
+        }
+      }
+      for (const url of pass.urls) this.loader.unpin(url);
+      chain.passes = chain.passes.filter((p) => p !== pass);
+    }, Math.max(0, after));
+  }
+
+  private applyIntensity(chain: Chain, fade: number) {
     if (!this.ctx) return;
-    for (const mode of MUSIC_MODES) {
-      deck.layers[mode].forEach((gain, i) => {
-        if (gain) ramp(gain.gain, i < this.intensity ? 1 : 0, fade, this.ctx!);
-      });
-    }
+    chain.layers.forEach((gain, i) => {
+      ramp(gain.gain, i < this.intensity ? 1 : 0, fade, this.ctx!);
+    });
   }
 
-  private applyMode(deck: Deck, fade: number) {
-    if (!this.ctx) return;
-    for (const mode of MUSIC_MODES) {
-      ramp(deck.modes[mode].gain, this.mode === mode ? 1 : 0, fade, this.ctx);
-    }
-  }
-
-  /** Fade the current deck out and let it go — used when switching to `off`. */
   private retireDeck() {
     this.generation++;
     if (this.deck) this.stopDeck(this.deck, this.opts.modeFadeMs / 1000);
     this.deck = null;
+    this.emit({ motifId: null });
   }
 
   private stopDeck(deck: Deck, fade: number) {
     if (deck.stopped || !this.ctx) return;
     deck.stopped = true;
     ramp(deck.out.gain, 0, fade, this.ctx);
+    for (const chain of deck.chains) this.stopChain(chain, fade);
+    window.setTimeout(() => {
+      deck.out.disconnect();
+      this.loader.releaseUnpinned();
+    }, (fade + 0.3) * 1000);
+  }
+
+  private stopChain(chain: Chain, fade: number) {
+    if (chain.stopped || !this.ctx) return;
+    chain.stopped = true;
+    if (chain.timer !== null) {
+      window.clearTimeout(chain.timer);
+      chain.timer = null;
+    }
+    ramp(chain.gain.gain, 0, fade, this.ctx);
     const at = this.ctx.currentTime + fade + 0.05;
-    for (const source of deck.sources) {
-      try {
-        source.stop(at);
-      } catch {
-        /* already stopped */
+    for (const pass of chain.passes) {
+      for (const source of pass.sources) {
+        try {
+          source.stop(at);
+        } catch {
+          /* already stopped */
+        }
+      }
+      if (!pass.released) {
+        pass.released = true;
+        for (const url of pass.urls) this.loader.unpin(url);
       }
     }
-    window.setTimeout(() => deck.out.disconnect(), (fade + 0.2) * 1000);
+    window.setTimeout(() => chain.gain.disconnect(), (fade + 0.3) * 1000);
   }
 
   /* -------------------------------------------------------------- ambience - */
@@ -381,7 +550,7 @@ export class AmbienceEngine {
     const gain = ctx.createGain();
     gain.gain.value = 0;
     gain.connect(this.ambienceBus);
-    const bed: Bed = { gain, source: null, level, stopping: false };
+    const bed: Bed = { gain, source: null, level, stopping: false, url };
     this.beds.set(bedId, bed);
     this.trimAmbienceBus(fade);
 
@@ -391,6 +560,7 @@ export class AmbienceEngine {
         this.markBed(bedId, true);
         // the row may have been switched off again while this was decoding
         if (this.beds.get(bedId) !== bed || bed.stopping || bed.level === 0 || !this.ctx) return;
+        this.loader.pin(url);
         const source = this.ctx.createBufferSource();
         source.buffer = buffer;
         source.loop = true;
@@ -424,6 +594,7 @@ export class AmbienceEngine {
     } catch {
       /* already stopped */
     }
+    if (bed.url && bed.source) this.loader.unpin(bed.url);
     window.setTimeout(() => bed.gain.disconnect(), (fade + 0.2) * 1000);
   }
 

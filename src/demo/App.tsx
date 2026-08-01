@@ -97,6 +97,10 @@ function HostControls(props: { base: string }) {
           mode {state.mode} · intensity {state.intensity} · beds{" "}
           {Object.values(state.levels).filter((n) => n > 0).length}
         </div>
+        <div>
+          motif <strong style={{ color: T.ink, fontWeight: 600 }}>{status.motifId ?? "—"}</strong> · decoded{" "}
+          {(status.decodedBytes / (1024 * 1024)).toFixed(1)} MB
+        </div>
         <div style={{ color: T.faint }}>
           serving audio from <code style={{ fontFamily: "ui-monospace, monospace" }}>{props.base}</code> ·{" "}
           {status.running ? "context running" : "context idle"}

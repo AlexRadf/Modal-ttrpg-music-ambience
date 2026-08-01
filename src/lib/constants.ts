@@ -22,4 +22,14 @@ export const DEFAULTS = {
   modeFadeMs: 700,
   bedFadeMs: 600,
   masterVolume: 0.8,
+  /**
+   * 320 MB of decoded audio: enough for two motifs of stereo stems plus a full
+   * set of beds, with room to keep the rest of a pool cached. Audio that is
+   * sounding is never evicted, so this is a target rather than a hard cap —
+   * see the memory note in ASSETS.md for the arithmetic, and lower it for
+   * tablets or if the stems are mono.
+   */
+  maxDecodedBytes: 320 * 1024 * 1024,
+  /** Start decoding the next motif this long before the current one ends. */
+  motifQueueLeadMs: 10000,
 };

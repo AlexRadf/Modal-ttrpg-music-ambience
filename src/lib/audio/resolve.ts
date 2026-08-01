@@ -20,7 +20,10 @@ export interface AssetLayoutOptions {
  * The conventional layout:
  *
  *   {base}/{bedDir}/{bedId}.{ext}
- *   {base}/{musicDir}/{themeId}/{variantId}/{mode}-{n}.{ext}
+ *   {base}/{musicDir}/{themeId}/{motifId}/layer-{n}.{ext}
+ *
+ * Motifs sit under the scene rather than under a variant, because two variants
+ * of a scene share motifs — and so should share the files.
  *
  * Pass the result as `resolveSrc`. Assets that carry their own `src` in the
  * config are used as-is and never reach this.
@@ -36,7 +39,7 @@ export function assetLayout(opts: AssetLayoutOptions): SrcResolver {
     const url =
       req.kind === "bed"
         ? `${base}/${bedDir}/${req.bedId}.${ext}`
-        : `${base}/${musicDir}/${req.themeId}/${req.variantId}/${req.mode}-${req.layer + 1}.${ext}`;
+        : `${base}/${musicDir}/${req.themeId}/${req.motifId}/layer-${req.layer + 1}.${ext}`;
     return !available || available.has(url) ? url : null;
   };
 }
