@@ -17,7 +17,7 @@ export type Intensity = 1 | 2 | 3 | 4 | 5;
 export interface BedDef {
   id: string;
   name: string;
-  /** Explicit URL. When omitted the engine asks `resolveSrc`, then falls back to synthesis. */
+  /** URL of the uploaded file. Omit to have `resolveSrc` derive it from the id. */
   src?: string;
   /** Static trim in linear gain, for beds that are hot or quiet at the source. */
   trim?: number;
@@ -28,11 +28,16 @@ export interface VariantDef {
   id: string;
   name: string;
   /**
-   * Explicit stem URLs, innermost layer first. Every layer of both stacks starts
-   * together and is gated by gain, so the stacks must be the same length and the
-   * same musical length. Omit to let `resolveSrc`/synthesis provide them.
+   * Stem URLs, innermost layer first. Both stacks must have the same number of
+   * stems, cut to the same musical length, and be bounced from one performance:
+   * they all start on the same sample and are gated by gain alone.
+   *
+   * Omit to have `resolveSrc` derive the URLs, in which case `layers` says how
+   * many stems were uploaded.
    */
   music?: Partial<Record<MusicMode, string[]>>;
+  /** Stems per stack when URLs come from `resolveSrc`. Defaults to 5. */
+  layers?: number;
 }
 
 /** A place. Carries its own art, palette, variants and default bed selection. */
@@ -58,14 +63,15 @@ export interface AmbienceConfig {
   themes: ThemeDef[];
 }
 
-/** What the engine is being asked to load, so a host can name files however it likes. */
+/** What the engine needs a URL for, so a host can name uploads however it likes. */
 export type SrcRequest =
   | { kind: "bed"; bedId: string }
   | { kind: "music"; themeId: string; variantId: string; mode: MusicMode; layer: number };
 
 /**
- * Maps a request onto a URL. Return `null` to skip the network entirely and use
- * the built-in synthesiser (handy before any audio has been recorded).
+ * Maps a request onto the URL the file was uploaded to. Returning `null` means
+ * "nothing was uploaded for this" — the engine skips it silently rather than
+ * reporting a missing file.
  */
 export type SrcResolver = (req: SrcRequest) => string | null;
 
@@ -80,15 +86,24 @@ export interface EngineOptions {
   bedFadeMs?: number;
   /** 0..1, applied at the master bus. */
   masterVolume?: number;
-  /** Build audio procedurally when a source has no URL or fails to load. Default true. */
-  synthFallback?: boolean;
+  /** Where the uploaded files live. Required unless every asset carries its own URL. */
   resolveSrc?: SrcResolver;
+  /** Passed to every `fetch` — for `credentials`, auth headers, or a CORS mode. */
+  fetchInit?: RequestInit;
 }
 
-/** Snapshot of what the engine is doing, surfaced for loading states and diagnostics. */
+/** An asset that could not be fetched or decoded. */
+export interface LoadFailure {
+  url: string;
+  message: string;
+}
+
+/** Snapshot of what the engine is doing, for loading states and diagnostics. */
 export interface EngineStatus {
   running: boolean;
   loading: boolean;
-  /** Non-fatal load failures, keyed by the URL that failed. */
-  errors: string[];
+  /** Most recent load failures, newest last. */
+  errors: LoadFailure[];
+  /** Bed ids whose audio could not be loaded, so the UI can mark them. */
+  unavailableBeds: string[];
 }

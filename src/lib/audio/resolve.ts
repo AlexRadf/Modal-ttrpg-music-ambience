@@ -16,8 +16,8 @@ export interface AssetLayoutOptions {
  *   {base}/{bedDir}/{bedId}.{ext}
  *   {base}/{musicDir}/{themeId}/{variantId}/{mode}-{n}.{ext}
  *
- * Pass the result as `resolveSrc`. Anything that 404s falls back to the
- * synthesiser, so a half-produced library still plays.
+ * Pass the result as `resolveSrc`. Assets that carry their own `src` in the
+ * config are used as-is and never reach this.
  */
 export function assetLayout(opts: AssetLayoutOptions): SrcResolver {
   const base = opts.base.replace(/\/+$/, "");

@@ -1,57 +1,76 @@
-import { synthBed, synthMusicLayer, type MusicSpec } from "./synth";
-
 /**
- * Fetches and decodes audio, with one shared promise per URL so a bed used by
- * three themes is still only downloaded once. When a source has no URL — or the
- * fetch fails — it falls back to the synthesiser, which is what makes the
- * console usable before any audio has been produced.
+ * Fetches and decodes audio from the server, with one shared promise per URL so
+ * a bed used by three themes is only downloaded once.
+ *
+ * There is no fallback: if a file is missing or will not decode, the load fails
+ * and the caller reports it. A failed URL is dropped from the cache so the next
+ * attempt retries rather than replaying the failure.
  */
+export interface LoadFailure {
+  url: string;
+  message: string;
+}
+
 export class AssetLoader {
   private cache = new Map<string, Promise<AudioBuffer>>();
   private inflight = 0;
 
   constructor(
     private ctx: AudioContext,
-    private opts: { synthFallback: boolean; onError?: (message: string) => void; onBusy?: (busy: boolean) => void }
+    private opts: {
+      fetchInit?: RequestInit;
+      onError?: (failure: LoadFailure) => void;
+      onBusy?: (busy: boolean) => void;
+    }
   ) {}
 
   get busy(): boolean {
     return this.inflight > 0;
   }
 
-  bed(bedId: string, src: string | null): Promise<AudioBuffer> {
-    return this.get(src ?? "synth:bed:" + bedId, src, () => synthBed(this.ctx.sampleRate, bedId));
-  }
-
-  music(spec: MusicSpec, src: string | null): Promise<AudioBuffer> {
-    const key = src ?? `synth:music:${spec.themeId}:${spec.variantId}:${spec.mode}:${spec.layer}`;
-    return this.get(key, src, () => synthMusicLayer(this.ctx.sampleRate, spec));
-  }
-
-  private get(key: string, src: string | null, fallback: () => Promise<AudioBuffer>): Promise<AudioBuffer> {
-    const hit = this.cache.get(key);
+  /** Resolves to the decoded buffer, or rejects with a described failure. */
+  load(url: string): Promise<AudioBuffer> {
+    const hit = this.cache.get(url);
     if (hit) return hit;
 
     const task = this.track(async () => {
-      if (src) {
-        try {
-          const res = await fetch(src);
-          if (!res.ok) throw new Error(res.status + " " + res.statusText);
-          return await this.ctx.decodeAudioData(await res.arrayBuffer());
-        } catch (err) {
-          const message = `${src}: ${err instanceof Error ? err.message : String(err)}`;
-          this.opts.onError?.(message);
-          if (!this.opts.synthFallback) throw err;
-        }
+      let res: Response;
+      try {
+        res = await fetch(url, this.opts.fetchInit);
+      } catch (err) {
+        throw this.fail(url, err instanceof Error ? err.message : String(err));
       }
-      if (!this.opts.synthFallback) throw new Error("no source for " + key);
-      return fallback();
+      if (!res.ok) throw this.fail(url, res.status + " " + res.statusText);
+
+      // a server with an SPA fallback answers 200 with index.html for a missing
+      // file, which otherwise surfaces as a baffling decode error
+      const type = res.headers.get("content-type") || "";
+      if (/^text\/|html|json/i.test(type)) throw this.fail(url, `expected audio, server sent ${type}`);
+
+      const bytes = await res.arrayBuffer();
+      if (bytes.byteLength === 0) throw this.fail(url, "empty response");
+
+      try {
+        return await this.ctx.decodeAudioData(bytes);
+      } catch (err) {
+        // decodeAudioData rejects with a bare DOMException in most browsers
+        throw this.fail(url, "could not decode" + (err instanceof Error && err.message ? ": " + err.message : ""));
+      }
     });
 
-    // a failed load should not be cached forever
-    task.catch(() => this.cache.delete(key));
-    this.cache.set(key, task);
+    task.catch(() => this.cache.delete(url));
+    this.cache.set(url, task);
     return task;
+  }
+
+  /** Warms the cache without touching the graph. Failures are reported, not thrown. */
+  async prefetch(urls: string[]): Promise<void> {
+    await Promise.allSettled(urls.map((url) => this.load(url)));
+  }
+
+  private fail(url: string, message: string): Error {
+    this.opts.onError?.({ url, message });
+    return new Error(url + ": " + message);
   }
 
   private async track<T>(fn: () => Promise<T>): Promise<T> {

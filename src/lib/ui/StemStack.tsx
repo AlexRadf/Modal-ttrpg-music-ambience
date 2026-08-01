@@ -2,21 +2,24 @@ import { T } from "../theme";
 import { MAX_INTENSITY } from "../constants";
 import type { Intensity } from "../types";
 
-const HEIGHTS = [18, 26, 34, 42, 50];
-
 export interface StemStackProps {
   value: Intensity;
   onChange: (n: Intensity) => void;
   accent: string;
   /** The music bus is off — show the stack as inactive without disabling it. */
   dimmed?: boolean;
+  /** Steps to show: however many stems this variant was authored with. */
+  max?: number;
 }
 
 /** How many stem layers of the current stack are unmuted. */
 export function StemStack(props: StemStackProps) {
+  const steps = Math.max(1, Math.min(props.max ?? MAX_INTENSITY, MAX_INTENSITY));
+  const heights = Array.from({ length: steps }, (_, i) => (steps === 1 ? 50 : 18 + (i * 32) / (steps - 1)));
+
   return (
     <div style={{ position: "relative", display: "flex", alignItems: "flex-end", gap: 6, height: 50 }}>
-      {HEIGHTS.map((h, i) => {
+      {heights.map((h, i) => {
         const on = i < props.value;
         return (
           <div
@@ -37,7 +40,7 @@ export function StemStack(props: StemStackProps) {
         className="amb-slider"
         type="range"
         min={1}
-        max={MAX_INTENSITY}
+        max={steps}
         step={1}
         value={props.value}
         onChange={(e) => props.onChange(Number(e.target.value) as Intensity)}

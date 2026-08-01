@@ -11,6 +11,8 @@ export interface BedRowProps {
   onRemove?: (() => void) | null;
   accent: string;
   first?: boolean;
+  /** The upload for this bed could not be loaded. */
+  unavailable?: boolean;
 }
 
 /** One ambience bed: name, and three loudness steps that also act as on/off. */
@@ -51,23 +53,31 @@ export function BedRow(props: BedRowProps) {
         )}
       </div>
 
-      <span
-        style={{
-          flex: 1,
-          minWidth: 0,
-          overflow: "hidden",
-          textOverflow: "ellipsis",
-          whiteSpace: "nowrap",
-          fontSize: 14,
-          color: props.level ? T.ink : T.muted,
-          fontWeight: props.level ? 500 : 400,
-        }}
+      <div
+        title={props.unavailable ? props.name + " — audio unavailable" : undefined}
+        style={{ display: "flex", flex: 1, minWidth: 0, alignItems: "baseline", gap: 8 }}
       >
-        {props.name}
-      </span>
+        <span
+          style={{
+            minWidth: 0,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
+            fontSize: 14,
+            color: props.unavailable ? T.faint : props.level ? T.ink : T.muted,
+            fontWeight: props.level && !props.unavailable ? 500 : 400,
+          }}
+        >
+          {props.name}
+        </span>
+        {props.unavailable && (
+          <span style={{ flexShrink: 0, fontSize: 11, fontStyle: "italic", color: T.faint }}>unavailable</span>
+        )}
+      </div>
 
       {([1, 2, 3] as const).map((n) => {
-        const on = props.level >= n;
+        // a bed with no audio must not look like it is playing, whatever its level
+        const on = !props.unavailable && props.level >= n;
         return (
           <button
             key={n}
@@ -82,7 +92,7 @@ export function BedRow(props: BedRowProps) {
               height: 26,
               borderRadius: 8,
               background: on ? props.accent : T.track,
-              opacity: on ? 0.35 + n * 0.22 : 1,
+              opacity: props.unavailable ? 0.5 : on ? 0.35 + n * 0.22 : 1,
               border: "1px solid " + (on ? "transparent" : T.line),
               transition: "background .16s ease, opacity .16s ease",
             }}

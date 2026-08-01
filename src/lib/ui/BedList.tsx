@@ -6,7 +6,7 @@ import { useAmbience } from "../state/context";
 
 /** The ambience mixer: the theme's beds, plus anything borrowed from the library. */
 export function BedList() {
-  const { config, state, actions, rows, bed, accent } = useAmbience();
+  const { config, state, actions, status, rows, bed, accent } = useAmbience();
   const [adding, setAdding] = useState(false);
   const [query, setQuery] = useState("");
 
@@ -46,6 +46,7 @@ export function BedList() {
           onRemove={state.extra.includes(id) ? () => actions.removeBed(id) : null}
           accent={accent}
           first={i === 0}
+          unavailable={status.unavailableBeds.includes(id)}
         />
       ))}
 

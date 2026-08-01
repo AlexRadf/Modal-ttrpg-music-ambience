@@ -109,7 +109,12 @@ export function AmbienceProvider(props: AmbienceProviderProps) {
   const [state, setState] = useState<AmbienceState>(() =>
     load(persistKey, initialFor(config, props.initialState))
   );
-  const [status, setStatus] = useState<EngineStatus>({ running: false, loading: false, errors: [] });
+  const [status, setStatus] = useState<EngineStatus>({
+    running: false,
+    loading: false,
+    errors: [],
+    unavailableBeds: [],
+  });
   /** Nothing touches the AudioContext until the first deliberate gesture. */
   const [armed, setArmed] = useState(false);
 

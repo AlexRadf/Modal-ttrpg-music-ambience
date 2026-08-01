@@ -5,9 +5,10 @@ import type {
   EngineOptions,
   EngineStatus,
   Intensity,
+  LoadFailure,
   Mode,
   MusicMode,
-  SrcResolver,
+  SrcRequest,
   ThemeDef,
   VariantDef,
 } from "../types";
@@ -16,12 +17,12 @@ import { clamp, ramp } from "./util";
 
 const MUSIC_MODES: MusicMode[] = ["explore", "combat"];
 
-/** One theme+variant, fully loaded and playing. */
+/** One theme+variant, loaded and playing. Layers that failed to load are null. */
 interface Deck {
   key: string;
   out: GainNode;
   modes: Record<MusicMode, GainNode>;
-  layers: Record<MusicMode, GainNode[]>;
+  layers: Record<MusicMode, Array<GainNode | null>>;
   sources: AudioBufferSourceNode[];
   stopped: boolean;
 }
@@ -38,8 +39,8 @@ interface Bed {
  *
  * Signal flow:
  *
- *   master ─┬─ music ── deck ─┬─ explore ── layer 1..5
- *           │                 └─ combat  ── layer 1..5
+ *   master ─┬─ music ── deck ─┬─ explore ── layer 1..n
+ *           │                 └─ combat  ── layer 1..n
  *           └─ ambience ── bed × n
  *
  * Every stem of a deck starts on the same sample and runs for the life of the
@@ -56,15 +57,17 @@ export class AmbienceEngine {
 
   private deck: Deck | null = null;
   private beds = new Map<string, Bed>();
+  private unavailable = new Set<string>();
   private listeners = new Set<(s: EngineStatus) => void>();
 
   private scene: { themeId: string; variantId: string } | null = null;
   private mode: Mode = "off";
   private intensity: Intensity = 3;
   private generation = 0;
-  private status: EngineStatus = { running: false, loading: false, errors: [] };
+  private status: EngineStatus = { running: false, loading: false, errors: [], unavailableBeds: [] };
 
-  private opts: Required<Omit<EngineOptions, "resolveSrc">> & { resolveSrc?: SrcResolver };
+  private opts: Required<Omit<EngineOptions, "resolveSrc" | "fetchInit">> &
+    Pick<EngineOptions, "resolveSrc" | "fetchInit">;
 
   constructor(private config: AmbienceConfig, options: EngineOptions = {}) {
     this.opts = {
@@ -73,8 +76,8 @@ export class AmbienceEngine {
       modeFadeMs: options.modeFadeMs ?? DEFAULTS.modeFadeMs,
       bedFadeMs: options.bedFadeMs ?? DEFAULTS.bedFadeMs,
       masterVolume: options.masterVolume ?? DEFAULTS.masterVolume,
-      synthFallback: options.synthFallback ?? true,
       resolveSrc: options.resolveSrc,
+      fetchInit: options.fetchInit,
     };
   }
 
@@ -89,6 +92,18 @@ export class AmbienceEngine {
   private emit(patch: Partial<EngineStatus>) {
     this.status = { ...this.status, ...patch };
     for (const fn of this.listeners) fn(this.status);
+  }
+
+  private report(failure: LoadFailure) {
+    this.emit({ errors: this.status.errors.concat(failure).slice(-12) });
+  }
+
+  private markBed(bedId: string, available: boolean) {
+    const had = this.unavailable.has(bedId);
+    if (available === !had) return;
+    if (available) this.unavailable.delete(bedId);
+    else this.unavailable.add(bedId);
+    this.emit({ unavailableBeds: [...this.unavailable] });
   }
 
   /* ------------------------------------------------------------ lifecycle - */
@@ -118,9 +133,9 @@ export class AmbienceEngine {
     this.ambienceBus.connect(this.master);
 
     this.loader = new AssetLoader(ctx, {
-      synthFallback: this.opts.synthFallback,
+      fetchInit: this.opts.fetchInit,
       onBusy: (busy) => this.emit({ loading: busy }),
-      onError: (message) => this.emit({ errors: this.status.errors.concat(message).slice(-8) }),
+      onError: (failure) => this.report(failure),
     });
 
     return ctx;
@@ -153,6 +168,45 @@ export class AmbienceEngine {
   setMasterVolume(v: number) {
     this.opts.masterVolume = clamp(v, 0, 1);
     if (this.ctx) ramp(this.master.gain, this.opts.masterVolume, 0.08, this.ctx);
+  }
+
+  /* ------------------------------------------------------------- sources -- */
+
+  /** An asset's URL: whatever the config carries, else whatever the resolver says. */
+  private srcFor(req: SrcRequest, explicit?: string): string | null {
+    return explicit ?? this.opts.resolveSrc?.(req) ?? null;
+  }
+
+  /** Stem URLs per stack, indexed by layer. `null` means nothing was uploaded. */
+  private urlsFor(theme: ThemeDef, variant: VariantDef): Record<MusicMode, Array<string | null>> {
+    const out = {} as Record<MusicMode, Array<string | null>>;
+    for (const mode of MUSIC_MODES) {
+      const explicit = variant.music?.[mode];
+      const count = explicit?.length ?? variant.layers ?? MAX_INTENSITY;
+      out[mode] = Array.from({ length: count }, (_, layer) =>
+        this.srcFor({ kind: "music", themeId: theme.id, variantId: variant.id, mode, layer }, explicit?.[layer])
+      );
+    }
+    return out;
+  }
+
+  /**
+   * Downloads and decodes a scene's assets without disturbing playback. Worth
+   * calling when the console opens, so the first press of play is instant.
+   */
+  async preload(themeId: string, variantId?: string): Promise<void> {
+    const theme = this.config.themes.find((t) => t.id === themeId);
+    if (!theme) return;
+    const variant = theme.variants.find((v) => v.id === variantId) ?? theme.variants[0];
+    if (!variant) return;
+
+    this.ensure();
+    const urls = this.urlsFor(theme, variant);
+    const wanted = MUSIC_MODES.flatMap((mode) => urls[mode])
+      .concat(theme.ambience.map((bedId) => this.srcFor({ kind: "bed", bedId }, this.config.beds[bedId]?.src)))
+      .filter((url): url is string => !!url);
+
+    await this.loader.prefetch(wanted);
   }
 
   /* ---------------------------------------------------------------- music - */
@@ -202,9 +256,32 @@ export class AmbienceEngine {
     if (this.deck && this.deck.key === key) return;
 
     const token = ++this.generation;
-    const buffers = await this.loadStems(theme, variant);
-    // a newer scene was requested while this one was decoding
+    const urls = this.urlsFor(theme, variant);
+    const buffers = {} as Record<MusicMode, Array<AudioBuffer | null>>;
+
+    // one bad stem should not cost the whole scene, so failures are tolerated
+    const settled = await Promise.all(
+      MUSIC_MODES.map((mode) =>
+        Promise.allSettled(urls[mode].map((url) => (url ? this.loader.load(url) : Promise.resolve(null))))
+      )
+    );
     if (token !== this.generation || !this.ctx) return;
+
+    let loaded = 0;
+    MUSIC_MODES.forEach((mode, i) => {
+      buffers[mode] = settled[i].map((result) => {
+        const buffer = result.status === "fulfilled" ? result.value : null;
+        if (buffer) loaded++;
+        return buffer;
+      });
+    });
+
+    if (loaded === 0) {
+      // nothing to play: keep whatever is already playing rather than going silent
+      const declared = MUSIC_MODES.some((mode) => urls[mode].some(Boolean));
+      this.report({ url: key, message: declared ? "no stems could be loaded" : "no music uploaded for this variant" });
+      return;
+    }
 
     const deck = this.buildDeck(ctx, key, buffers);
     const fade = this.opts.crossfadeMs / 1000;
@@ -217,36 +294,13 @@ export class AmbienceEngine {
     this.deck = deck;
   }
 
-  private async loadStems(theme: ThemeDef, variant: VariantDef): Promise<Record<MusicMode, AudioBuffer[]>> {
-    const perMode = await Promise.all(
-      MUSIC_MODES.map(async (mode) => {
-        const explicit = variant.music?.[mode];
-        const count = explicit?.length || MAX_INTENSITY;
-        const layers = await Promise.all(
-          Array.from({ length: count }, (_, layer) => {
-            const src =
-              explicit?.[layer] ??
-              this.opts.resolveSrc?.({ kind: "music", themeId: theme.id, variantId: variant.id, mode, layer }) ??
-              null;
-            return this.loader.music(
-              { themeId: theme.id, variantId: variant.id, mode, layer, bpm: theme.bpm, key: theme.key },
-              src
-            );
-          })
-        );
-        return [mode, layers] as const;
-      })
-    );
-    return Object.fromEntries(perMode) as Record<MusicMode, AudioBuffer[]>;
-  }
-
-  private buildDeck(ctx: AudioContext, key: string, buffers: Record<MusicMode, AudioBuffer[]>): Deck {
+  private buildDeck(ctx: AudioContext, key: string, buffers: Record<MusicMode, Array<AudioBuffer | null>>): Deck {
     const out = ctx.createGain();
     out.gain.value = 0;
     out.connect(this.musicBus);
 
     const modes = {} as Record<MusicMode, GainNode>;
-    const layers = {} as Record<MusicMode, GainNode[]>;
+    const layers = {} as Record<MusicMode, Array<GainNode | null>>;
     const sources: AudioBufferSourceNode[] = [];
 
     // one start time for every stem in the deck — this is the phase lock
@@ -258,7 +312,8 @@ export class AmbienceEngine {
       modeGain.connect(out);
       modes[mode] = modeGain;
 
-      layers[mode] = buffers[mode].map((buffer) => {
+      layers[mode] = (buffers[mode] ?? []).map((buffer) => {
+        if (!buffer) return null;
         const gain = ctx.createGain();
         gain.gain.value = 0;
         gain.connect(modeGain);
@@ -281,7 +336,7 @@ export class AmbienceEngine {
     if (!this.ctx) return;
     for (const mode of MUSIC_MODES) {
       deck.layers[mode].forEach((gain, i) => {
-        ramp(gain.gain, i < this.intensity ? 1 : 0, fade, this.ctx!);
+        if (gain) ramp(gain.gain, i < this.intensity ? 1 : 0, fade, this.ctx!);
       });
     }
   }
@@ -338,6 +393,14 @@ export class AmbienceEngine {
       return;
     }
 
+    const def = this.config.beds[bedId];
+    const url = this.srcFor({ kind: "bed", bedId }, def?.src);
+    if (!url) {
+      this.markBed(bedId, false);
+      this.report({ url: bedId, message: "no audio uploaded for this bed" });
+      return;
+    }
+
     const gain = ctx.createGain();
     gain.gain.value = 0;
     gain.connect(this.ambienceBus);
@@ -345,12 +408,10 @@ export class AmbienceEngine {
     this.beds.set(bedId, bed);
     this.trimAmbienceBus(fade);
 
-    const def = this.config.beds[bedId];
-    const src = def?.src ?? this.opts.resolveSrc?.({ kind: "bed", bedId }) ?? null;
-
     void this.loader
-      .bed(bedId, src)
+      .load(url)
       .then((buffer) => {
+        this.markBed(bedId, true);
         // the row may have been switched off again while this was decoding
         if (this.beds.get(bedId) !== bed || bed.stopping || bed.level === 0 || !this.ctx) return;
         const source = this.ctx.createBufferSource();
@@ -363,7 +424,11 @@ export class AmbienceEngine {
         ramp(bed.gain.gain, this.bedGain(bedId, bed.level), fade, this.ctx);
       })
       .catch(() => {
-        this.beds.delete(bedId);
+        this.markBed(bedId, false);
+        if (this.beds.get(bedId) === bed) {
+          bed.gain.disconnect();
+          this.beds.delete(bedId);
+        }
         this.trimAmbienceBus(fade);
       });
   }

@@ -14,7 +14,6 @@ export type {
 export { AmbienceEngine } from "./lib/audio/engine";
 export { assetLayout } from "./lib/audio/resolve";
 export type { AssetLayoutOptions } from "./lib/audio/resolve";
-export { synthBed, synthMusicLayer, musicLoopSeconds } from "./lib/audio/synth";
 
 export { DEFAULT_CONFIG, BEDS, THEMES } from "./lib/data";
 export { LEVEL_GAIN, MAX_INTENSITY, busTrim } from "./lib/constants";
@@ -27,6 +26,7 @@ export type {
   EngineOptions,
   EngineStatus,
   Intensity,
+  LoadFailure,
   Mode,
   MusicMode,
   SrcRequest,

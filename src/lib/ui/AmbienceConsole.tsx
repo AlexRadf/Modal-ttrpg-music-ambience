@@ -70,7 +70,11 @@ function ConsoleUI(props: AmbienceConsoleProps) {
   };
 
   const showAuthoring = props.showAuthoring ?? SHOW_AUTHORING;
-  const activeBeds = rows.filter((id) => (state.levels[id] ?? 0) > 0).length;
+  // beds whose audio is missing are not playing, so they do not count towards
+  // the bus trim readout or light up the trigger
+  const activeBeds = rows.filter(
+    (id) => (state.levels[id] ?? 0) > 0 && !status.unavailableBeds.includes(id)
+  ).length;
 
   if (!theme || !variant) return null;
 
@@ -196,6 +200,7 @@ function ConsoleUI(props: AmbienceConsoleProps) {
             onChange={actions.setIntensity}
             accent={accent}
             dimmed={state.mode === "off"}
+            max={variant.layers ?? variant.music?.explore?.length}
           />
           <ModeToggle mode={state.mode} onChange={actions.setMode} accent={accent} />
         </div>

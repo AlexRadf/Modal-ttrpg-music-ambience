@@ -4,8 +4,8 @@ A modular music and ambience player for TTRPG web apps. One floating button open
 console where you pick a place, a version of that place, how hard the scene is going,
 and what the room sounds like underneath.
 
-It is a React component with a Web Audio engine behind it. No Tailwind, no CSS import,
-no audio files required to start.
+It is a React component with a Web Audio engine behind it. It plays audio files you host;
+nothing is bundled and nothing is generated.
 
 ```bash
 npm install
@@ -16,21 +16,21 @@ npm run build    # library -> dist/
 ## Drop it in
 
 ```tsx
-import { AmbienceConsole } from "@ambience/console";
+import { AmbienceConsole, assetLayout } from "@ambience/console";
 
 export function App() {
   return (
     <>
       <YourApp />
-      <AmbienceConsole />
+      <AmbienceConsole options={{ resolveSrc: assetLayout({ base: "/audio" }) }} />
     </>
   );
 }
 ```
 
 That is the whole integration. The component renders its own floating trigger, provides
-its own state, persists to `localStorage`, and ships styles inline — nothing to import
-and nothing to configure.
+its own state, persists to `localStorage`, and ships styles inline — no CSS to import and
+no Tailwind. The one thing it needs is where your uploads live.
 
 ## How it sounds
 
@@ -53,43 +53,72 @@ room holds its level whether one bed is up or six.
 Modes: `off` silences music only. Ambience beds keep playing, which is usually what you
 want when the table stops for a rules argument.
 
-## Bring your own audio
+## Pointing it at your files
 
-Nothing is bundled. Point the engine at your files with `resolveSrc`, either by hand or
-with the conventional layout helper:
+`resolveSrc` maps an asset onto the URL it was uploaded to. `assetLayout` is a helper for
+the conventional arrangement:
 
 ```tsx
-import { AmbienceConsole, assetLayout } from "@ambience/console";
-
-<AmbienceConsole options={{ resolveSrc: assetLayout({ base: "/audio", ext: "ogg" }) }} />;
+<AmbienceConsole options={{ resolveSrc: assetLayout({ base: "/audio", ext: "ogg" }) }} />
 ```
-
-which expects:
 
 ```
 /audio/ambience/{bedId}.ogg
 /audio/music/{themeId}/{variantId}/{explore|combat}-{1..5}.ogg
 ```
 
-Per-asset URLs win over the resolver, so a half-produced library works — give a bed a
-`src` and leave the rest:
+Any other naming scheme is a function — ids in, URLs out. Return `null` for anything not
+uploaded and the engine skips it silently instead of reporting it missing:
 
 ```ts
-beds: { "hearth-fire": { id: "hearth-fire", name: "Hearth fire", src: "/audio/fire.ogg" } }
+resolveSrc: (req) =>
+  req.kind === "bed"
+    ? uploads.beds[req.bedId] ?? null
+    : uploads.stems[`${req.themeId}/${req.variantId}/${req.mode}/${req.layer}`] ?? null;
 ```
 
-**Authoring the stems.** All five layers of a stack must be the same musical length and
-render from the same performance — bounce them from one session with layers soloed, do
-not record them separately. Layer 1 is the floor and is heard alone at intensity 1; layer
-5 is the top and is heard only at 5. The combat stack must match the exploration stack's
-length exactly or the two will drift apart when you switch.
+Per-asset URLs in the config win over the resolver, which is the escape hatch for one
+oddly-named file or a signed URL:
 
-**Until then, everything is synthesised.** Any source with no URL — or one that 404s —
-is generated procedurally from its id: filtered noise and scattered events for beds,
-a drone/pad/figure/pulse/lead stack for music, seeded so a given id sounds the same on
-every load. It is a stand-in, not a soundtrack, but it means the console is playable and
-demoable before a note has been recorded. Turn it off with `synthFallback: false` and
-missing files simply stay silent.
+```ts
+beds: { "hearth-fire": { id: "hearth-fire", name: "Hearth fire", src: "https://cdn/…/fire.ogg" } }
+```
+
+Uploads behind auth: `options.fetchInit` is passed to every `fetch`, so
+`{ credentials: "include" }` or an `Authorization` header works. Cross-origin hosts need
+CORS headers — audio is fetched and decoded, not streamed through an `<audio>` tag.
+
+Call `engine.preload(themeId, variantId)` to warm the cache — worth doing when the
+console opens, so the first press of play does not wait on ten downloads.
+
+## Authoring the stems
+
+All layers of a stack must be the same musical length and come from the same performance:
+bounce them from one session with layers soloed, do not record them separately. They start
+on the same sample and are gated by gain alone, so anything else drifts.
+
+- Layer 1 is the floor, heard alone at intensity 1. Layer 5 is the top, heard only at 5.
+- The combat stack must match the exploration stack's length exactly, or switching mid-bar
+  puts the two out of phase.
+- Fewer than five layers is fine — set `layers: 3` on the variant and the intensity control
+  shows three steps.
+- Loop points must be clean in the file itself; playback uses `loop = true`, which is
+  sample-exact and does no crossfading.
+
+## When a file is missing
+
+There is no fallback, so failures are made visible rather than papered over:
+
+- A bed whose file will not load is marked **unavailable** in the list, greyed with its
+  level dots unlit, and left out of the bus trim. Clicking it retries.
+- A music stem that fails is skipped; the rest of the stack still plays. If every stem of
+  a scene fails, whatever was already playing keeps playing rather than dropping to silence.
+- Every failure lands in `status.errors` as `{ url, message }`, so you can surface them in
+  your own UI. The demo prints them.
+
+A server with an SPA fallback answers `200` with `index.html` for a missing file, which
+would otherwise surface as a baffling decode error — the loader checks the content type and
+reports `expected audio, server sent text/html` instead.
 
 ## Drive it from your app
 
@@ -136,7 +165,7 @@ cover art, or leave it null and the `art` gradient stands in.
 | Prop | Default | |
 |---|---|---|
 | `config` | bundled pack | Themes and beds. |
-| `options` | — | `EngineOptions`: `resolveSrc`, fade times, `masterVolume`, `synthFallback`. |
+| `options` | — | `EngineOptions`: `resolveSrc`, `fetchInit`, fade times, `masterVolume`. |
 | `open` / `defaultOpen` / `onOpenChange` | uncontrolled | Control the modal from outside. |
 | `trigger` | `true` | Render the floating button. |
 | `inline` | `false` | Dock the console in the page instead of over an overlay. |
@@ -163,10 +192,9 @@ src/lib/
   types.ts, constants.ts, theme.ts   contract, gain tables, design tokens
   data/                              the bundled content pack
   audio/  engine.ts                  buses, decks, beds, fades
-          loader.ts                  fetch + decode, cached, with fallback
-          synth.ts                   procedural stand-in audio
+          loader.ts                  fetch + decode, cached, per-URL failures
           resolve.ts                 URL layout helper
-          util.ts                    seamless looping, scales, ramps
+          util.ts                    gain ramps
   state/context.tsx                  React state, persistence, engine sync
   ui/                                the console, one file per part
 src/demo/                            a host app to try it in
@@ -174,9 +202,11 @@ src/demo/                            a host app to try it in
 
 ## Notes
 
-- Bed levels are −18 / −12 / −6 dB (`LEVEL_GAIN`). Beds sit well under music by design;
-  with real assets the music/ambience balance is yours to author at the source.
-- Loops are made seamless on the way in: ambience crossfades its tail onto its head,
-  music wraps note tails past the loop point back onto the head so the bar grid survives.
+- Bed levels are −18 / −12 / −6 dB (`LEVEL_GAIN`); music stems play at unity. The balance
+  between the two buses is yours to set at the source when you master the files.
+- Each URL is fetched and decoded once and shared, so a bed used by six themes costs one
+  download. A failed URL is dropped from the cache so the next attempt retries.
+- The demo takes `?assets=` and `?ext=` on the query string, which is the quickest way to
+  point it at a real server: `npm run dev` then `/?assets=https://your-host/audio&ext=mp3`.
 - Escape and overlay clicks close the console, focus is trapped while it is open and
   restored on close, and `prefers-reduced-motion` disables the animations.
