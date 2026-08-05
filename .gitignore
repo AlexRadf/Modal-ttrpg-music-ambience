@@ -1,7 +1,15 @@
-node_modules
-dist
-dist-demo
-*.local
+# Your audio stays out of the repo — it's yours, and it's large.
+audio/**/*.mp3
+audio/**/*.ogg
+audio/**/*.wav
+audio/**/*.m4a
+audio/**/*.flac
+audio/**/*.opus
+audio/**/*.aac
+audio/**/*.webm
+
+# Generated from audio/ by build-library.mjs.
+library.json
+
 .DS_Store
-.vite
-*.log
+node_modules/
